@@ -10,16 +10,25 @@ cute-face-grid/          小工具本体（打包对象，zip 根目录即该目
 ├── app.js               全部业务逻辑（经典外置脚本，含错误兜底）
 ├── assets.js            素材清单（由脚本自动生成，勿手工编辑）
 ├── icon.png             工具图标（512×512）
-├── objects/             预置主体抠图 ×12
+├── objects/             预置主体抠图 ×17（含杨桃/蓝莓/雪糕/布丁/啫喱等）
 └── bg/                  预置波点底图 ×11
 
 gen-cute-face-grid-manifest.py   扫描 stickers/ bg/ objects/ 重新生成 assets.js
-prep-objects.py                  处理主体抠图：白底去除、裁边、缩放、量化入包
+prep-objects.py                  第一批主体入包：白底去除、裁边、缩放、量化
+prep-objects2.py                 第三批主体入包（杨桃/蓝莓/雪糕/布丁/啫喱）
 prep-bgs.py / prep-bgs2.py       波点底图缩放、量化入包（两批素材）
 crop-bgs.py                      底图中心裁剪为正方形
 gen-icon.py                      生成工具图标（蓝底波点 + 纸杯蛋糕 + ·ω·）
 check-appjs.py                   app.js 括号配平粗检
 ```
+
+## 功能一览
+
+- 主体：17 款预置食物抠图，默认「原样 + 白色柔光」；也可上传自己的照片（圆形白边 / 填满 / 圆角渲染）
+- 底图：7 款程序化波点 + 11 款预置底图 + 自主上传（最多保留 6 张）
+- 表情：颜文字兜底 + 自主上传（最多保留 8 个），拖动定位、滑杆调大小、垃圾桶删除
+- 其他：画笔撒星星、撤销栈、清空、预览缩放；菜单栏右侧独立「📤 导出图片」按钮
+- 端能力：`writeTempFile → saveImageToPhotosAlbum` / `postNote`，判空降级；普通浏览器长按预览图保存
 
 ## 常用操作
 
