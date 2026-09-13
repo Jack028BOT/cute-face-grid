@@ -89,6 +89,19 @@
     background: transparent; border: none; border-radius: 3px;
   }
   .menu-act:active { background: #f9bfd9; }
+  .export-btn {
+    margin-left: auto; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    height: 32px; padding: 0 12px;
+    font-size: 13px; font-weight: 700; color: #fff;
+    text-shadow: 0 1px 1px rgba(180, 40, 110, .5);
+    background: linear-gradient(180deg, #ff9ecb, #f56ba4);
+    border: 2px solid; border-color: #ffd0e4 #d14e8d #d14e8d #ffd0e4;
+    border-radius: 5px;
+    box-shadow: 1px 1px 0 rgba(180, 40, 110, .3);
+    white-space: nowrap;
+  }
+  .export-btn:active { border-color: #d14e8d #ffd0e4 #ffd0e4 #d14e8d; background: #ef5d9b; }
 
   /* --- 工具栏 --- */
   #toolbar {
@@ -118,6 +131,7 @@
     .tool-btn.mini { width: 34px; }
     #zoomLabel { min-width: 34px; margin: 0 3px; font-size: 12px; }
     .menu-btn { padding: 5px 10px; font-size: 13px; }
+    .export-btn { height: 30px; padding: 0 9px; font-size: 12px; }
   }
   @media (max-width: 380px) {
     .tool-btn { padding: 0 6px; font-size: 12px; }
@@ -286,6 +300,7 @@
           <button type="button" class="menu-act" data-act="about">使用说明</button>
         </div>
       </div>
+      <button type="button" class="export-btn" id="btnExport">📤 导出图片</button>
     </div>
 
     <div id="toolbar">

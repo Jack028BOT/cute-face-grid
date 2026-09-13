@@ -718,6 +718,7 @@
     }
   });
   $('btnSave').addEventListener('click', function () { saveFlow(); });
+  $('btnExport').addEventListener('click', function () { saveFlow(); });
 
   /* ================= 菜单 ================= */
   function closeMenus() {
