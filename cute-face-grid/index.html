@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>萌系贴贴</title>
+<link rel="icon" type="image/png" href="./icon.png" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                 "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    background: #e88bb5;
+    touch-action: manipulation;
+  }
+
+  /* ===== Y2K 复古窗口 ===== */
+  #win {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; flex-direction: column;
+    background: linear-gradient(180deg, #fde7f1 0%, #f9d3e4 55%, #f3bcd6 100%);
+    border: 3px solid;
+    border-color: #ffe9f3 #d76ea2 #c9599a #ffe9f3;
+    padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ===== 标题栏（顶部安全区由标题栏同色渐变填充，避免拼接缝） ===== */
+  #titlebar {
+    flex: none;
+    display: flex; align-items: center;
+    padding: 0 8px 0 10px;
+    padding-top: 72px;
+    padding-top: calc(var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) + 72px);
+    background: linear-gradient(90deg, #ff8fc0 0%, #ff9ecb 45%, #ffb3d9 100%);
+    border-bottom: 2px solid #d76ea2;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
+  }
+  #titlebar .tb-gem { font-size: 17px; margin-right: 7px; }
+  #titlebar .tb-title {
+    flex: 1 1 auto; min-width: 0;
+    color: #fff; font-weight: 700; font-size: 16px; letter-spacing: 1px;
+    text-shadow: 0 1px 2px rgba(180, 40, 110, .6);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tb-chip {
+    flex: none; margin-left: 6px; padding: 2px 7px;
+    background: #fff; color: #e2559a; font-size: 11px; font-weight: 700;
+    border: 1px solid #d76ea2; border-radius: 3px;
+    box-shadow: 1px 1px 0 rgba(180,40,110,.35);
+  }
+  .tb-btn {
+    flex: none; width: 30px; height: 26px; margin-left: 6px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, #ffe9f3, #fbc0da);
+    border: 2px solid; border-color: #fff #d76ea2 #d76ea2 #fff;
+    border-radius: 4px; color: #b3487f; font-size: 12px; font-weight: 700;
+  }
+  .tb-btn.close { color: #fff; background: linear-gradient(180deg, #ff7fae, #ef4d8b); }
+
+  /* --- 菜单栏 --- */
+  #menubar {
+    flex: none; display: flex; align-items: center;
+    padding: 4px 6px; position: relative;
+    border-bottom: 2px solid #eeb1cf;
+  }
+  .menu-item { position: relative; }
+  .menu-btn {
+    padding: 5px 14px; font-size: 14px; color: #8d3a67;
+    background: transparent; border: 2px solid transparent; border-radius: 4px;
+  }
+  .menu-btn:active { background: #f9bfd9; border-color: #d76ea2; }
+  .menu-pop {
+    display: none; position: absolute; left: 0; top: 34px; z-index: 90;
+    min-width: 150px; padding: 4px;
+    background: #fff7fb;
+    border: 2px solid; border-color: #fff #d76ea2 #d76ea2 #fff;
+    box-shadow: 3px 3px 0 rgba(180, 40, 110, .3);
+  }
+  .menu-pop.show { display: block; }
+  .menu-act {
+    display: block; width: 100%; text-align: left;
+    padding: 9px 12px; font-size: 14px; color: #8d3a67;
+    background: transparent; border: none; border-radius: 3px;
+  }
+  .menu-act:active { background: #f9bfd9; }
+
+  /* --- 工具栏 --- */
+  #toolbar {
+    flex: none; display: flex; align-items: center;
+    padding: 6px 8px;
+  }
+  .tool-btn {
+    display: flex; align-items: center; justify-content: center;
+    height: 38px; padding: 0 9px; margin-right: 6px;
+    font-size: 13px; font-weight: 600; color: #6d2b50;
+    white-space: nowrap; flex: none;
+    background: linear-gradient(180deg, #ffffff, #fbdce9);
+    border: 2px solid; border-color: #fff #cf6ca1 #cf6ca1 #fff;
+    border-radius: 5px;
+    box-shadow: 1px 1px 0 rgba(180, 40, 110, .25);
+  }
+  .tool-btn:active { border-color: #cf6ca1 #fff #fff #cf6ca1; background: #f6b8d4; }
+  .tool-btn.mini { width: 38px; padding: 0; margin-right: 0; }
+  .tool-btn.on { background: linear-gradient(180deg, #ffd0e4, #ff9ecb); color: #fff; text-shadow: 0 1px 1px rgba(180,40,110,.5); }
+  #zoomLabel {
+    flex: none; min-width: 40px; text-align: center; font-size: 13px; font-weight: 700; color: #8d3a67;
+    margin: 0 6px 0 6px;
+  }
+  @media (max-width: 430px) {
+    .tool-btn { padding: 0 7px; font-size: 12px; margin-right: 4px; }
+    .tool-btn .ico { display: none; }
+    .tool-btn.mini { width: 34px; }
+    #zoomLabel { min-width: 34px; margin: 0 3px; font-size: 12px; }
+    .menu-btn { padding: 5px 10px; font-size: 13px; }
+  }
+  @media (max-width: 380px) {
+    .tool-btn { padding: 0 6px; font-size: 12px; }
+    #zoomLabel { min-width: 30px; margin: 0 2px; }
+    .menu-btn { padding: 5px 8px; font-size: 13px; }
+    .mat-tile { width: 58px; height: 58px; margin-right: 6px; }
+  }
+  .tb-spacer { flex: 1 1 auto; }
+
+  /* --- 滑杆行 --- */
+  #sliderRow {
+    flex: none; display: flex; align-items: center;
+    padding: 2px 12px 6px 12px; font-size: 13px; color: #8d3a67; font-weight: 600;
+  }
+  #sliderRow .cap { flex: none; }
+  #sliderRow .cap.end { margin-left: 8px; }
+  #sizeVal { flex: none; min-width: 42px; text-align: right; margin-left: 8px; }
+  #sizeSlider { flex: 1 1 auto; min-width: 0; margin-left: 8px; -webkit-appearance: none; appearance: none; height: 22px; background: transparent; }
+  #sizeSlider::-webkit-slider-runnable-track {
+    height: 8px; border-radius: 4px;
+    background: linear-gradient(90deg, #ff9ecb, #ffe9f3);
+    border: 1px solid #d76ea2;
+  }
+  #sizeSlider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 22px; height: 22px; margin-top: -8px; border-radius: 50%;
+    background: #fff; border: 2px solid #e2559a;
+    box-shadow: 0 1px 3px rgba(180,40,110,.4);
+  }
+
+  /* --- 中央画布区 --- */
+  #stage {
+    flex: 1 1 auto; min-height: 0; position: relative;
+    margin: 2px 10px;
+    background: #fdf1f7;
+    border: 2px solid; border-color: #d76ea2 #fff #fff #d76ea2;
+    overflow: hidden;
+  }
+  #canvasWrap {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  #view { display: block; touch-action: none; }
+  #trash {
+    position: absolute; right: 10px; bottom: 10px; z-index: 20;
+    width: 56px; height: 56px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    background: #fdf1f7;
+    border: 2px solid; border-color: #fff #cf6ca1 #cf6ca1 #fff;
+    color: #b3487f;
+  }
+  #trash.hot { background: #ffb9d6; color: #fff; border-color: #cf6ca1 #fff #fff #cf6ca1; }
+
+  /* --- 素材行 --- */
+  .mat-row { flex: none; display: flex; align-items: stretch; padding: 6px 10px 0 10px; min-height: 78px; }
+  .mat-row:last-of-type { padding-bottom: 6px; }
+  .mat-label {
+    flex: none; width: 40px; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #8d3a67;
+  }
+  .mat-scroll {
+    flex: 1 1 auto; min-width: 0;
+    display: flex; align-items: center;
+    overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 2px;
+  }
+  .mat-scroll::-webkit-scrollbar { display: none; }
+  .mat-tile {
+    flex: none; width: 64px; height: 64px; margin-right: 8px;
+    background: #fff; border: 2px solid; border-color: #e8a8c8 #d76ea2 #d76ea2 #e8a8c8;
+    border-radius: 4px; padding: 2px;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .mat-tile.sel { border-color: #e2559a; box-shadow: 0 0 0 2px #ff9ecb; }
+  .mat-tile:active { background: #ffe9f3; }
+  .mat-tile canvas, .mat-tile img { max-width: 100%; max-height: 100%; display: block; }
+  .mat-tile .face-tile { font-size: 24px; font-weight: 700; color: #222; }
+  .mat-tile .plus-tile { font-size: 26px; color: #d76ea2; font-weight: 700; }
+  .mat-tile.style-tile { width: 46px; height: 46px; font-size: 11px; color: #8d3a67; font-weight: 600; }
+
+  /* --- 状态栏 --- */
+  #statusbar {
+    flex: none; display: flex; align-items: center;
+    min-height: 30px; padding: 3px 10px;
+    padding-bottom: 3px;
+    padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 3px));
+    background: #f9bfd9;
+    border-top: 2px solid #fff;
+    font-size: 12px; color: #7c2f58; font-weight: 600;
+    white-space: nowrap; overflow: hidden;
+  }
+  #statusbar .cell { flex: none; margin-right: 12px; }
+  #statusbar .grow { flex: 1 1 auto; min-width: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; }
+
+  /* --- 轻提示 --- */
+  #toast {
+    display: none; position: fixed; left: 50%; bottom: 22%; z-index: 200;
+    transform: translateX(-50%);
+    max-width: 78%; padding: 10px 18px;
+    background: rgba(60, 20, 40, .85); color: #fff;
+    font-size: 14px; border-radius: 8px; text-align: center;
+    pointer-events: none;
+  }
+  #toast.show { display: block; }
+
+  /* --- 保存结果弹层 --- */
+  #saveModal {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 150;
+    background: rgba(70, 20, 45, .55);
+    align-items: center; justify-content: center;
+  }
+  #saveModal.show { display: flex; }
+  #saveCard {
+    width: 82%; max-width: 340px; max-height: 86%; overflow-y: auto;
+    background: #fff7fb; border: 3px solid; border-color: #fff #d76ea2 #d76ea2 #fff;
+    padding: 14px; text-align: center;
+  }
+  #saveCard h3 { font-size: 16px; color: #8d3a67; margin-bottom: 10px; }
+  #saveCard img { max-width: 100%; border: 2px solid #f0b7d2; display: block; margin: 0 auto 10px auto; }
+  #saveCard p { font-size: 13px; color: #a05c82; margin-bottom: 12px; }
+  #saveCard .modal-btns { display: flex; align-items: center; justify-content: center; }
+  #saveCard .tool-btn { margin: 0 4px; }
+
+  #fatal {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 300;
+    background: #fff; color: #333; font-size: 15px;
+    align-items: center; justify-content: center; text-align: center;
+    padding: 30px;
+  }
+  #fatal.show { display: flex; }
+</style>
+</head>
+<body>
+  <div id="win">
+    <div id="titlebar">
+      <span class="tb-gem">✨</span>
+      <span class="tb-title">untitled – 萌系贴贴</span>
+      <span class="tb-chip">CN</span>
+      <span class="tb-btn">_</span>
+      <span class="tb-btn">□</span>
+      <span class="tb-btn close">×</span>
+    </div>
+
+    <div id="menubar">
+      <div class="menu-item">
+        <button type="button" class="menu-btn" data-menu="file">文件</button>
+        <div class="menu-pop" id="popFile">
+          <button type="button" class="menu-act" data-act="pick">选张照片…</button>
+          <button type="button" class="menu-act" data-act="save">保存到相册</button>
+          <button type="button" class="menu-act" data-act="clear">清空贴纸</button>
+        </div>
+      </div>
+      <div class="menu-item">
+        <button type="button" class="menu-btn" data-menu="edit">编辑</button>
+        <div class="menu-pop" id="popEdit">
+          <button type="button" class="menu-act" data-act="undo">撤销</button>
+          <button type="button" class="menu-act" data-act="delSel">删除选中表情</button>
+        </div>
+      </div>
+      <div class="menu-item">
+        <button type="button" class="menu-btn" data-menu="help">帮助</button>
+        <div class="menu-pop" id="popHelp">
+          <button type="button" class="menu-act" data-act="about">使用说明</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toolbar">
+      <button type="button" class="tool-btn" id="btnClear"><span class="ico">🗑</span> 清空</button>
+      <button type="button" class="tool-btn" id="btnSave"><span class="ico">💾</span> 保存</button>
+      <button type="button" class="tool-btn" id="btnUndo"><span class="ico">↩</span> 撤销</button>
+      <button type="button" class="tool-btn" id="btnBrush"><span class="ico">✨</span> 画笔</button>
+      <span class="tb-spacer"></span>
+      <button type="button" class="tool-btn mini" id="zoomOut">−</button>
+      <span id="zoomLabel">1:1</span>
+      <button type="button" class="tool-btn mini" id="zoomIn">+</button>
+    </div>
+
+    <div id="sliderRow">
+      <span class="cap">表情大小</span>
+      <span class="cap">小</span>
+      <input type="range" id="sizeSlider" min="40" max="220" value="100" />
+      <span class="cap end">大</span>
+      <span id="sizeVal">100%</span>
+    </div>
+
+    <div id="stage">
+      <div id="canvasWrap"><canvas id="view"></canvas></div>
+      <div id="trash">🗑</div>
+    </div>
+
+    <div class="mat-row">
+      <span class="mat-label">背景</span>
+      <div class="mat-scroll" id="bgScroll"></div>
+    </div>
+    <div class="mat-row">
+      <span class="mat-label">主体</span>
+      <div class="mat-scroll" id="photoScroll"></div>
+    </div>
+    <div class="mat-row">
+      <span class="mat-label">表情</span>
+      <div class="mat-scroll" id="stkScroll"></div>
+    </div>
+
+    <div id="statusbar">
+      <span class="cell" id="statCount">✨ × 0</span>
+      <span class="cell" id="statZoom">缩放 100%</span>
+      <span class="grow" id="statHint">点素材行添加 · 拖动调整位置 · 拖到垃圾桶删除</span>
+    </div>
+  </div>
+
+  <input type="file" id="photoInput" accept="image/*" style="display:none" />
+  <input type="file" id="stickerInput" accept="image/*" multiple style="display:none" />
+  <input type="file" id="bgInput" accept="image/*" multiple style="display:none" />
+
+  <div id="saveModal">
+    <div id="saveCard">
+      <h3>生成完成</h3>
+      <img id="savePreview" alt="生成结果预览" />
+      <p id="saveMsg"></p>
+      <div class="modal-btns">
+        <button type="button" class="tool-btn" id="btnPost">发布笔记</button>
+        <button type="button" class="tool-btn" id="btnSaveAlbum">保存到相册</button>
+        <button type="button" class="tool-btn" id="btnCloseModal">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+  <div id="fatal">哎呀，出了点小问题，请退出后重新打开～</div>
+
+  <script src="./assets.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
