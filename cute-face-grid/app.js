@@ -433,21 +433,7 @@
       });
       row.appendChild(t);
     });
-    customBgs.forEach(function (it, i) {
-      var t = makeTile();
-      var c = document.createElement('canvas');
-      c.width = 60; c.height = 60;
-      drawCover(c.getContext('2d'), it.img, 60, 0, 0, 60, 60);
-      t.appendChild(c);
-      if (state.bgId === 'custom:' + i) t.className += ' sel';
-      t.addEventListener('click', function () {
-        pushUndo();
-        state.bgId = 'custom:' + i;
-        persistPrefs();
-        refreshRows(); render();
-      });
-      row.appendChild(t);
-    });
+    // 自定义背景槽位（位于行末）：空白时点击选图；已上传时显示缩略图，点击启用为背景
     fileBgs.forEach(function (it, i) {
       var t = makeTile();
       var c = document.createElement('canvas');
@@ -463,7 +449,40 @@
       });
       row.appendChild(t);
     });
-    row.appendChild(makePlusTile('+', function () { $('bgInput').click(); }));
+    var slot = makeTile();
+    if (customBgs.length) {
+      var lastIdx = customBgs.length - 1;
+      (function (idx) {
+        var it = customBgs[idx];
+        var c = document.createElement('canvas');
+        c.width = 60; c.height = 60;
+        drawCover(c.getContext('2d'), it.img, 60, 0, 0, 60, 60);
+        slot.appendChild(c);
+        if (state.bgId === 'custom:' + idx) slot.className += ' sel';
+        slot.addEventListener('click', function () {
+          pushUndo();
+          state.bgId = 'custom:' + idx;
+          persistPrefs();
+          refreshRows(); render();
+        });
+        var rep = document.createElement('span');
+        rep.className = 'slot-replace';
+        rep.textContent = '↻';
+        rep.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          $('bgInput').click();
+        });
+        slot.appendChild(rep);
+      })(lastIdx);
+    } else {
+      slot.className += ' slot-empty';
+      var sp = document.createElement('span');
+      sp.className = 'plus-tile';
+      sp.textContent = '+';
+      slot.appendChild(sp);
+      slot.addEventListener('click', function () { $('bgInput').click(); });
+    }
+    row.appendChild(slot);
   }
 
   function drawContain(cc, img, s) {
@@ -753,7 +772,7 @@
     },
     about: function () {
       closeMenus();
-      window.alert('萌系贴贴\n\n1. 点「照片」行选一张照片（白底食物图会自动抠掉背景）\n2. 点「背景」行挑一块波点底或上传背景\n3. 点「表情」行贴上颜文字，拖动摆位置\n4. 点「保存」生成方图，可存相册或发笔记');
+      window.alert('萌系贴贴\n\n1. 点「照片」行选一张照片（白底食物图会自动抠掉背景）\n2. 点「背景」行挑一块波点底；或点末尾的「+」槽位上传自己的背景，图片会显示在槽位里，点它即可启用（↻ 可换图）\n3. 点「表情」行贴上颜文字，拖动摆位置\n4. 点「保存」生成方图，可存相册或发笔记');
     }
   };
   var acts = document.querySelectorAll('.menu-act');
@@ -927,43 +946,25 @@
   });
 
   $('bgInput').addEventListener('change', function () {
-    var files = this.files || [];
+    var file = this.files && this.files[0];
     this.value = '';
-    var pending = files.length;
-    if (!pending) return;
-    var added = 0;
-    // 无论成功失败都结算，防止单张失败导致整批不刷新
-    function settle() {
-      if (--pending === 0) {
-        if (added > 0) {
-          persistCustom(CUSTOM_BG_KEY, customBgs);
-          persistPrefs();
-          refreshRows(); render();
-        } else {
-          toast('背景图片没有读取成功');
-        }
-      }
-    }
-    for (var i = 0; i < files.length; i++) {
-      (function (file) {
-        fileToDataURL(file, 900, 'image/jpeg', 0.82, function (url) {
-          if (!url) { settle(); return; }
-          var img = new Image();
-          img.onload = function () {
-            if (customBgs.length >= 6) {
-              customBgs.shift();
-              toast('最多保留 6 张自定义背景，最早的已被替换');
-            }
-            customBgs.push({ src: url, img: img });
-            state.bgId = 'custom:' + (customBgs.length - 1);
-            added++;
-            settle();
-          };
-          img.onerror = function () { settle(); };
-          img.src = url;
-        });
-      })(files[i]);
-    }
+    if (!file) { toast('没有选到图片，再试一次'); return; }
+    fileToDataURL(file, 900, 'image/jpeg', 0.82, function (url) {
+      if (!url) { toast('背景图片没有读取成功'); return; }
+      var img = new Image();
+      img.onload = function () {
+        // 槽位只保留最近一张：清空旧的，放入新的并立即启用
+        customBgs.length = 0;
+        customBgs.push({ src: url, img: img });
+        state.bgId = 'custom:0';
+        persistCustom(CUSTOM_BG_KEY, customBgs);
+        persistPrefs();
+        refreshRows(); render();
+        toast('已放入背景栏末尾的槽位，点它即可启用');
+      };
+      img.onerror = function () { toast('这张图片解码失败，换一张试试'); };
+      img.src = url;
+    });
   });
 
   /* ================= 导出与端能力 ================= */
