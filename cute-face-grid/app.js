@@ -753,7 +753,7 @@
     },
     about: function () {
       closeMenus();
-      window.alert('萌系贴贴\n\n1. 点「照片」行选一张照片\n2. 点「背景」行挑一块波点底\n3. 点「表情」行贴上颜文字，拖动摆位置\n4. 点「保存」生成方图，可存相册或发笔记');
+      window.alert('萌系贴贴\n\n1. 点「照片」行选一张照片（白底食物图会自动抠掉背景）\n2. 点「背景」行挑一块波点底或上传背景\n3. 点「表情」行贴上颜文字，拖动摆位置\n4. 点「保存」生成方图，可存相册或发笔记');
     }
   };
   var acts = document.querySelectorAll('.menu-act');
@@ -804,14 +804,88 @@
       var img = new Image();
       img.onload = function () {
         pushUndo();
-        state.photo = img;
-        if (state.photoStyle === 'raw') state.photoStyle = 'circle';
+        var cut = autoCutout(img);
+        state.photo = cut.img;
+        state.photoStyle = cut.cut ? 'raw' : 'circle';
         refreshRows(); render();
-        toast('照片已就绪');
+        toast(cut.cut ? '已按轮廓抠掉浅色背景 ✂️' : '照片已就绪');
       };
       img.src = url;
     });
   });
+
+  /* ================= 上传主体自动抠图（白/浅色底洪泛填充） ================= */
+  // 从四边向内清除近白像素；返回清除数量。纯像素操作，便于单独测试。
+  function floodRemove(px, w, h, tol) {
+    function nearWhite(i) {
+      return px[i] > 255 - tol && px[i + 1] > 255 - tol && px[i + 2] > 255 - tol;
+    }
+    var total = w * h;
+    var visited = new Uint8Array(total);
+    var queue = new Int32Array(total);
+    var qh = 0, qt = 0, removed = 0, k, idx, x, y;
+    function visit(i) {
+      if (visited[i]) return;
+      visited[i] = 1;
+      if (nearWhite(i * 4)) {
+        px[i * 4 + 3] = 0;
+        removed++;
+        queue[qt++] = i;
+      }
+    }
+    for (k = 0; k < w; k++) { visit(k); visit((h - 1) * w + k); }
+    for (k = 0; k < h; k++) { visit(k * w); visit(k * w + w - 1); }
+    while (qh < qt) {
+      idx = queue[qh++];
+      x = idx % w;
+      y = (idx / w) | 0;
+      if (x > 0) visit(idx - 1);
+      if (x < w - 1) visit(idx + 1);
+      if (y > 0) visit(idx - w);
+      if (y < h - 1) visit(idx + w);
+    }
+    // 边缘羽化：与透明区相邻且非常白的像素一并清除，减少白边（只走 1 轮、阈值更严）
+    if (removed > 0) {
+      var toClear = [], i2, x2, y2, neigh;
+      for (y2 = 0; y2 < h; y2++) {
+        for (x2 = 0; x2 < w; x2++) {
+          i2 = y2 * w + x2;
+          if (px[i2 * 4 + 3] === 0) continue;
+          if (!(px[i2 * 4] > 247 && px[i2 * 4 + 1] > 247 && px[i2 * 4 + 2] > 247)) continue;
+          neigh = false;
+          if (x2 > 0 && px[(i2 - 1) * 4 + 3] === 0) neigh = true;
+          else if (x2 < w - 1 && px[(i2 + 1) * 4 + 3] === 0) neigh = true;
+          else if (y2 > 0 && px[(i2 - w) * 4 + 3] === 0) neigh = true;
+          else if (y2 < h - 1 && px[(i2 + w) * 4 + 3] === 0) neigh = true;
+          if (neigh) toClear.push(i2);
+        }
+      }
+      for (k = 0; k < toClear.length; k++) px[toClear[k] * 4 + 3] = 0;
+    }
+    return removed;
+  }
+
+  // 自动抠图入口：背景不明显或主体大面积偏白时放弃，保留原图
+  function autoCutout(img) {
+    var maxSide = 1200;
+    var scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+    var w = Math.max(1, Math.round(img.width * scale));
+    var h = Math.max(1, Math.round(img.height * scale));
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    var data;
+    try { data = ctx.getImageData(0, 0, w, h); } catch (e) { return { img: img, cut: false }; }
+    var removed = floodRemove(data.data, w, h, 12);
+    var total = w * h;
+    // 清除占比过小=背景不是浅色；占比过高=主体本身大面积偏白被误吃，都放弃抠图
+    if (removed < total * 0.04 || removed > total * 0.9) {
+      return { img: img, cut: false };
+    }
+    ctx.putImageData(data, 0, 0);
+    return { img: c, cut: true };
+  }
 
   $('stickerInput').addEventListener('change', function () {
     var files = this.files || [];
