@@ -765,6 +765,7 @@
   }
 
   /* ================= 文件选择 ================= */
+  // 读取失败时回调 cb(null)，避免调用方计数器卡死
   function fileToDataURL(file, maxSide, mime, quality, cb) {
     var reader = new FileReader();
     reader.onload = function () {
@@ -775,13 +776,22 @@
         var h = Math.max(1, Math.round(img.height * scale));
         var c = document.createElement('canvas');
         c.width = w; c.height = h;
-        c.getContext('2d').drawImage(img, 0, 0, w, h);
-        cb(c.toDataURL(mime, quality));
+        var cc = c.getContext('2d');
+        cc.drawImage(img, 0, 0, w, h);
+        // 含透明像素时改用 PNG，避免 JPEG 把透明区填成纯黑
+        var out = mime;
+        try {
+          var px = cc.getImageData(0, 0, w, h).data;
+          for (var i = 3; i < px.length; i += 4) {
+            if (px[i] < 255) { out = 'image/png'; break; }
+          }
+        } catch (e) { /* 像素读取受限时沿用原格式 */ }
+        cb(c.toDataURL(out, quality));
       };
-      img.onerror = function () { toast('这张图片读不出来，换一张试试'); };
+      img.onerror = function () { toast('这张图片读不出来，换一张试试'); cb(null); };
       img.src = reader.result;
     };
-    reader.onerror = function () { toast('图片读取失败'); };
+    reader.onerror = function () { toast('图片读取失败'); cb(null); };
     reader.readAsDataURL(file);
   }
 
@@ -790,6 +800,7 @@
     this.value = '';
     if (!file) return;
     fileToDataURL(file, 1600, 'image/jpeg', 0.9, function (url) {
+      if (!url) return;
       var img = new Image();
       img.onload = function () {
         pushUndo();
@@ -808,9 +819,22 @@
     var pending = files.length;
     if (!pending) return;
     var added = 0;
+    // 无论成功失败都结算，防止单张失败导致整批不刷新
+    function settle() {
+      if (--pending === 0) {
+        if (added > 0) {
+          persistCustom(CUSTOM_STK_KEY, customStickers);
+          refreshRows();
+          toast('已添加 ' + added + ' 个表情');
+        } else {
+          toast('表情图片没有读取成功');
+        }
+      }
+    }
     for (var i = 0; i < files.length; i++) {
       (function (file) {
         fileToDataURL(file, 360, 'image/png', 0.9, function (url) {
+          if (!url) { settle(); return; }
           var img = new Image();
           img.onload = function () {
             if (customStickers.length >= 8) {
@@ -819,12 +843,9 @@
             }
             customStickers.push({ src: url, img: img });
             added++;
-            if (--pending === 0) {
-              persistCustom(CUSTOM_STK_KEY, customStickers);
-              refreshRows();
-              toast('已添加 ' + added + ' 个表情');
-            }
+            settle();
           };
+          img.onerror = function () { settle(); };
           img.src = url;
         });
       })(files[i]);
@@ -836,9 +857,23 @@
     this.value = '';
     var pending = files.length;
     if (!pending) return;
+    var added = 0;
+    // 无论成功失败都结算，防止单张失败导致整批不刷新
+    function settle() {
+      if (--pending === 0) {
+        if (added > 0) {
+          persistCustom(CUSTOM_BG_KEY, customBgs);
+          persistPrefs();
+          refreshRows(); render();
+        } else {
+          toast('背景图片没有读取成功');
+        }
+      }
+    }
     for (var i = 0; i < files.length; i++) {
       (function (file) {
         fileToDataURL(file, 900, 'image/jpeg', 0.82, function (url) {
+          if (!url) { settle(); return; }
           var img = new Image();
           img.onload = function () {
             if (customBgs.length >= 6) {
@@ -847,12 +882,10 @@
             }
             customBgs.push({ src: url, img: img });
             state.bgId = 'custom:' + (customBgs.length - 1);
-            if (--pending === 0) {
-              persistCustom(CUSTOM_BG_KEY, customBgs);
-              persistPrefs();
-              refreshRows(); render();
-            }
+            added++;
+            settle();
           };
+          img.onerror = function () { settle(); };
           img.src = url;
         });
       })(files[i]);
