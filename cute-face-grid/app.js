@@ -574,7 +574,15 @@
       t.addEventListener('click', function () { addImgSticker(it.img); });
       row.appendChild(t);
     });
-    row.appendChild(makePlusTile('+', function () { $('stickerInput').click(); }));
+    // 行末固定上传槽位：虚线框 + 加号，点击唤起选图（与背景栏槽位样式一致）
+    var slot = makeTile('slot-empty');
+    var sp = document.createElement('span');
+    sp.className = 'plus-tile';
+    sp.textContent = '+';
+    slot.appendChild(sp);
+    slot.title = '上传自定义表情';
+    slot.addEventListener('click', function () { $('stickerInput').click(); });
+    row.appendChild(slot);
   }
 
   function addFace(text) {
@@ -919,7 +927,9 @@
   }
 
   $('stickerInput').addEventListener('change', function () {
-    var files = this.files || [];
+    // 先快照 File 对象到真实数组：清空 input.value 会连带清空 FileList，
+    // 之后再读 length 会得到 0，导致上传静默失败
+    var files = Array.prototype.slice.call(this.files || []);
     this.value = '';
     var pending = files.length;
     if (!pending) return;
