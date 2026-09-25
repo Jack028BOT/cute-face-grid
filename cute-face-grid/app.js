@@ -160,7 +160,7 @@
     brush: false,
     zoom: 1
   };
-  var prefs = { size: 100 };
+  var prefs = { size: 100, photoSize: 100 };
   var undoStack = [];
 
   function stickerBaseSize(st) {
@@ -250,6 +250,20 @@
   }
 
   function drawPhoto(ctx, s) {
+    if (!state.photo) return;
+    var k = prefs.photoSize / 100;
+    ctx.save();
+    if (k !== 1) {
+      // 以画布中心为锚点缩放主体，各样式（raw/card/circle）内部逻辑保持不变
+      ctx.translate(s / 2, s / 2);
+      ctx.scale(k, k);
+      ctx.translate(-s / 2, -s / 2);
+    }
+    drawPhotoInner(ctx, s);
+    ctx.restore();
+  }
+
+  function drawPhotoInner(ctx, s) {
     if (!state.photo) return;
     if (state.photoStyle === 'raw') {
       // 原样：透明抠图按原轮廓展示，带白色柔光（最接近示例效果）
@@ -433,8 +447,13 @@
       });
       row.appendChild(t);
     });
-    // 自定义背景槽位（位于行末）：空白时点击选图；已上传时显示缩略图，点击启用为背景
+    // 打包背景分两组展示：波点（dots-*.png）在前，照片底在后；自定义槽位仍在最后
+    var dotsList = [], photoList = [];
     fileBgs.forEach(function (it, i) {
+      (it.src.indexOf('dots') >= 0 ? dotsList : photoList).push({ it: it, i: i });
+    });
+    dotsList.concat(photoList).forEach(function (entry) {
+      var it = entry.it, i = entry.i;
       var t = makeTile();
       var c = document.createElement('canvas');
       c.width = 60; c.height = 60;
@@ -609,12 +628,6 @@
     return -1;
   }
 
-  function pointInTrash(ev) {
-    var tr = $('trash').getBoundingClientRect();
-    return ev.clientX >= tr.left && ev.clientX <= tr.right &&
-           ev.clientY >= tr.top && ev.clientY <= tr.bottom;
-  }
-
   view.addEventListener('pointerdown', function (ev) {
     ev.preventDefault();
     view.setPointerCapture && view.setPointerCapture(ev.pointerId);
@@ -658,7 +671,6 @@
     drag.snap = true;
     st.x = clamp(pt.x / EXPORT_SIZE + drag.offX, 0.02, 0.98);
     st.y = clamp(pt.y / EXPORT_SIZE + drag.offY, 0.02, 0.98);
-    $('trash').className = pointInTrash(ev) ? 'hot' : '';
     render();
   });
 
@@ -668,14 +680,6 @@
       drag = null;
       return;
     }
-    var st = state.stickers[drag.index];
-    if (st && ev && pointInTrash(ev)) {
-      state.stickers.splice(drag.index, 1);
-      state.selIndex = -1;
-      toast('已删除');
-      render(); updateCount();
-    }
-    $('trash').className = '';
     drag = null;
   }
   view.addEventListener('pointerup', endDrag);
@@ -685,7 +689,7 @@
   function syncSliderToSelection() {
     var st = state.stickers[state.selIndex];
     var v = st ? Math.round(st.scale * 100) : prefs.size;
-    $('sizeSlider').value = clamp(v, 40, 220);
+    $('sizeSlider').value = clamp(v, 40, 160);
     $('sizeVal').textContent = v + '%';
   }
 
@@ -700,6 +704,14 @@
       prefs.size = v;
       persistPrefs();
     }
+  });
+
+  $('photoSizeSlider').addEventListener('input', function () {
+    var v = parseInt(this.value, 10);
+    $('photoSizeVal').textContent = v + '%';
+    prefs.photoSize = clamp(v, 40, 160);
+    persistPrefs();
+    render();
   });
 
   var ZOOMS = [1, 1.25, 1.5, 2];
@@ -772,7 +784,7 @@
     },
     about: function () {
       closeMenus();
-      window.alert('萌系贴贴\n\n1. 点「照片」行选一张照片（白底食物图会自动抠掉背景）\n2. 点「背景」行挑一块波点底；或点末尾的「+」槽位上传自己的背景，图片会显示在槽位里，点它即可启用（↻ 可换图）\n3. 点「表情」行贴上颜文字，拖动摆位置\n4. 点「保存」生成方图，可存相册或发笔记');
+      window.alert('萌系贴贴\n\n1. 点「照片」行选一张照片（白底食物图会自动抠掉背景）\n2. 拖动「主体大小」滑杆调整主体大小，点「背景」行挑一块波点底；或点末尾的「+」槽位上传自己的背景，图片会显示在槽位里，点它即可启用（↻ 可换图）\n3. 点「表情」行贴上颜文字，拖动摆位置，「表情大小」滑杆可调整表情大小\n4. 点「保存」生成方图，可存相册或发笔记');
     }
   };
   var acts = document.querySelectorAll('.menu-act');
@@ -1063,7 +1075,8 @@
       if (p) {
         if (p.bgId) state.bgId = p.bgId;
         if (p.photoStyle) state.photoStyle = p.photoStyle;
-        if (p.size) prefs.size = clamp(parseInt(p.size, 10) || 100, 40, 220);
+        if (p.size) prefs.size = clamp(parseInt(p.size, 10) || 100, 40, 160);
+        if (p.photoSize) prefs.photoSize = clamp(parseInt(p.photoSize, 10) || 100, 40, 160);
       }
     } catch (e) { /* 忽略损坏的偏好数据 */ }
   }

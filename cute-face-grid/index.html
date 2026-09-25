@@ -142,20 +142,20 @@
   .tb-spacer { flex: 1 1 auto; }
 
   /* --- 滑杆行 --- */
-  #sliderRow {
+  #sliderRow, #photoSliderRow {
     flex: none; display: flex; align-items: center;
     padding: 2px 12px 6px 12px; font-size: 13px; color: #8d3a67; font-weight: 600;
   }
-  #sliderRow .cap { flex: none; }
-  #sliderRow .cap.end { margin-left: 8px; }
-  #sizeVal { flex: none; min-width: 42px; text-align: right; margin-left: 8px; }
-  #sizeSlider { flex: 1 1 auto; min-width: 0; margin-left: 8px; -webkit-appearance: none; appearance: none; height: 22px; background: transparent; }
-  #sizeSlider::-webkit-slider-runnable-track {
+  #sliderRow .cap, #photoSliderRow .cap { flex: none; }
+  #sliderRow .cap.end, #photoSliderRow .cap.end { margin-left: 8px; }
+  #sizeVal, #photoSizeVal { flex: none; min-width: 42px; text-align: right; margin-left: 8px; }
+  #sizeSlider, #photoSizeSlider { flex: 1 1 auto; min-width: 0; margin-left: 8px; -webkit-appearance: none; appearance: none; height: 22px; background: transparent; }
+  #sizeSlider::-webkit-slider-runnable-track, #photoSizeSlider::-webkit-slider-runnable-track {
     height: 8px; border-radius: 4px;
     background: linear-gradient(90deg, #ff9ecb, #ffe9f3);
     border: 1px solid #d76ea2;
   }
-  #sizeSlider::-webkit-slider-thumb {
+  #sizeSlider::-webkit-slider-thumb, #photoSizeSlider::-webkit-slider-thumb {
     -webkit-appearance: none; appearance: none;
     width: 22px; height: 22px; margin-top: -8px; border-radius: 50%;
     background: #fff; border: 2px solid #e2559a;
@@ -175,16 +175,6 @@
     transform: translate(-50%, -50%);
   }
   #view { display: block; touch-action: none; }
-  #trash {
-    position: absolute; right: 10px; bottom: 10px; z-index: 20;
-    width: 56px; height: 56px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 26px;
-    background: #fdf1f7;
-    border: 2px solid; border-color: #fff #cf6ca1 #cf6ca1 #fff;
-    color: #b3487f;
-  }
-  #trash.hot { background: #ffb9d6; color: #fff; border-color: #cf6ca1 #fff #fff #cf6ca1; }
 
   /* --- 素材行 --- */
   .mat-row { flex: none; display: flex; align-items: stretch; padding: 6px 10px 0 10px; min-height: 78px; }
@@ -323,17 +313,24 @@
       <button type="button" class="tool-btn mini" id="zoomIn">+</button>
     </div>
 
+    <div id="photoSliderRow">
+      <span class="cap">主体大小</span>
+      <span class="cap">小</span>
+      <input type="range" id="photoSizeSlider" min="40" max="160" value="100" />
+      <span class="cap end">大</span>
+      <span id="photoSizeVal">100%</span>
+    </div>
+
     <div id="sliderRow">
       <span class="cap">表情大小</span>
       <span class="cap">小</span>
-      <input type="range" id="sizeSlider" min="40" max="220" value="100" />
+      <input type="range" id="sizeSlider" min="40" max="160" value="100" />
       <span class="cap end">大</span>
       <span id="sizeVal">100%</span>
     </div>
 
     <div id="stage">
       <div id="canvasWrap"><canvas id="view"></canvas></div>
-      <div id="trash">🗑</div>
     </div>
 
     <div class="mat-row">
@@ -352,7 +349,7 @@
     <div id="statusbar">
       <span class="cell" id="statCount">✨ × 0</span>
       <span class="cell" id="statZoom">缩放 100%</span>
-      <span class="grow" id="statHint">点素材行添加 · 拖动调整位置 · 拖到垃圾桶删除</span>
+      <span class="grow" id="statHint">点素材行添加 · 拖动调整位置 · 选中后可删除</span>
     </div>
   </div>
 
