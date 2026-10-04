@@ -137,7 +137,8 @@
     .tool-btn { padding: 0 6px; font-size: 12px; }
     #zoomLabel { min-width: 30px; margin: 0 2px; }
     .menu-btn { padding: 5px 8px; font-size: 13px; }
-    .mat-tile { width: 58px; height: 58px; margin-right: 6px; }
+    .mat-scroll { gap: 6px; }
+    .mat-tile { width: 58px; height: 58px; }
   }
   .tb-spacer { flex: 1 1 auto; }
 
@@ -176,8 +177,21 @@
   }
   #view { display: block; touch-action: none; }
 
+  /* --- 素材面板（限高纵向滚动：行数增多时不挤压画布区） --- */
+  #matArea {
+    flex: none;
+    max-height: 246px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  #matArea::-webkit-scrollbar { display: none; }
+  @media (max-height: 640px) {
+    #matArea { max-height: 164px; }
+  }
+
   /* --- 素材行 --- */
-  .mat-row { flex: none; display: flex; align-items: stretch; padding: 6px 10px 0 10px; min-height: 78px; }
+  .mat-row { flex: none; display: flex; align-items: stretch; padding: 6px 10px 0 10px; min-height: 82px; }
   .mat-row:last-of-type { padding-bottom: 6px; }
   .mat-label {
     flex: none; width: 40px; display: flex; align-items: center; justify-content: center;
@@ -186,20 +200,25 @@
   .mat-scroll {
     flex: 1 1 auto; min-width: 0;
     display: flex; align-items: center;
+    gap: 8px;
     overflow-x: auto; overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
-    padding: 4px 2px;
+    padding: 6px 4px;
   }
   .mat-scroll::-webkit-scrollbar { display: none; }
   .mat-tile {
     position: relative;
-    flex: none; width: 64px; height: 64px; margin-right: 8px;
+    flex: none; width: 64px; height: 64px;
     background: #fff; border: 2px solid; border-color: #e8a8c8 #d76ea2 #d76ea2 #e8a8c8;
-    border-radius: 4px; padding: 2px;
+    border-radius: 8px; padding: 3px;
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
+    box-shadow: 0 2px 0 rgba(215,110,162,0.16);
+    transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    cursor: pointer;
+    -webkit-user-select: none; user-select: none;
   }
-  .mat-tile.slot-empty { border: 2px dashed #e2559a; background: #fff7fb; }
+  .mat-tile.slot-empty { border: 2px dashed #e2559a; background: #fff7fb; box-shadow: none; }
   .mat-tile.slot-empty .plus-tile { opacity: .75; }
   .mat-tile .slot-replace {
     position: absolute; right: 2px; top: 2px; z-index: 2;
@@ -208,11 +227,13 @@
     color: #b3487f; font-size: 11px; font-weight: 700;
   }
   .mat-tile.sel { border-color: #e2559a; box-shadow: 0 0 0 2px #ff9ecb; }
-  .mat-tile:active { background: #ffe9f3; }
-  .mat-tile canvas, .mat-tile img { max-width: 100%; max-height: 100%; display: block; }
+  .mat-tile:active { background: #ffe9f3; transform: translateY(1px); box-shadow: 0 1px 0 rgba(215,110,162,0.16); }
+  .mat-tile canvas, .mat-tile img {
+    width: 100%; height: 100%; display: block;
+    object-fit: contain; border-radius: 4px;
+  }
   .mat-tile .face-tile { font-size: 24px; font-weight: 700; color: #222; }
   .mat-tile .plus-tile { font-size: 26px; color: #d76ea2; font-weight: 700; }
-  .mat-tile.style-tile { width: 46px; height: 46px; font-size: 11px; color: #8d3a67; font-weight: 600; }
 
   /* --- 状态栏 --- */
   #statusbar {
@@ -239,23 +260,26 @@
   }
   #toast.show { display: block; }
 
-  /* --- 保存结果弹层 --- */
-  #saveModal {
+  /* --- 保存结果 / 页内确认 / 使用说明 弹层 --- */
+  #saveModal, #confirmModal, #infoModal {
     display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 150;
     background: rgba(70, 20, 45, .55);
     align-items: center; justify-content: center;
   }
-  #saveModal.show { display: flex; }
-  #saveCard {
+  #saveModal.show, #confirmModal.show, #infoModal.show { display: flex; }
+  #saveCard, #confirmCard, #infoCard {
     width: 82%; max-width: 340px; max-height: 86%; overflow-y: auto;
     background: #fff7fb; border: 3px solid; border-color: #fff #d76ea2 #d76ea2 #fff;
     padding: 14px; text-align: center;
   }
-  #saveCard h3 { font-size: 16px; color: #8d3a67; margin-bottom: 10px; }
+  #saveCard h3, #infoCard h3 { font-size: 16px; color: #8d3a67; margin-bottom: 10px; }
   #saveCard img { max-width: 100%; border: 2px solid #f0b7d2; display: block; margin: 0 auto 10px auto; }
   #saveCard p { font-size: 13px; color: #a05c82; margin-bottom: 12px; }
-  #saveCard .modal-btns { display: flex; align-items: center; justify-content: center; }
-  #saveCard .tool-btn { margin: 0 4px; }
+  #saveCard .modal-btns, #confirmCard .modal-btns, #infoCard .modal-btns { display: flex; align-items: center; justify-content: center; }
+  #saveCard .tool-btn, #confirmCard .tool-btn, #infoCard .tool-btn { margin: 0 4px; }
+  #confirmCard p { font-size: 14px; color: #8d3a67; line-height: 1.6; margin-bottom: 14px; }
+  #infoCard #infoBody { text-align: left; margin-bottom: 12px; }
+  #infoCard #infoBody p { font-size: 13px; color: #8d3a67; line-height: 1.7; margin-bottom: 8px; }
 
   #fatal {
     display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 300;
@@ -271,10 +295,6 @@
     <div id="titlebar">
       <span class="tb-gem">✨</span>
       <span class="tb-title">untitled – 萌系贴贴</span>
-      <span class="tb-chip">CN</span>
-      <span class="tb-btn">_</span>
-      <span class="tb-btn">□</span>
-      <span class="tb-btn close">×</span>
     </div>
 
     <div id="menubar">
@@ -333,17 +353,23 @@
       <div id="canvasWrap"><canvas id="view"></canvas></div>
     </div>
 
-    <div class="mat-row">
-      <span class="mat-label">背景</span>
-      <div class="mat-scroll" id="bgScroll"></div>
-    </div>
-    <div class="mat-row">
-      <span class="mat-label">主体</span>
-      <div class="mat-scroll" id="photoScroll"></div>
-    </div>
-    <div class="mat-row">
-      <span class="mat-label">表情</span>
-      <div class="mat-scroll" id="stkScroll"></div>
+    <div id="matArea">
+      <div class="mat-row">
+        <span class="mat-label">背景</span>
+        <div class="mat-scroll" id="bgScroll"></div>
+      </div>
+      <div class="mat-row">
+        <span class="mat-label">主体</span>
+        <div class="mat-scroll" id="photoScroll"></div>
+      </div>
+      <div class="mat-row">
+        <span class="mat-label">表情</span>
+        <div class="mat-scroll" id="stkScroll"></div>
+      </div>
+      <div class="mat-row" id="tintRow" style="display:none">
+        <span class="mat-label">颜色</span>
+        <div class="mat-scroll" id="tintScroll"></div>
+      </div>
     </div>
 
     <div id="statusbar">
@@ -366,6 +392,26 @@
         <button type="button" class="tool-btn" id="btnPost">发布笔记</button>
         <button type="button" class="tool-btn" id="btnSaveAlbum">保存到相册</button>
         <button type="button" class="tool-btn" id="btnCloseModal">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="confirmModal">
+    <div id="confirmCard">
+      <p id="confirmMsg"></p>
+      <div class="modal-btns">
+        <button type="button" class="tool-btn" id="btnConfirmOk">确定</button>
+        <button type="button" class="tool-btn" id="btnConfirmCancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="infoModal">
+    <div id="infoCard">
+      <h3>使用说明</h3>
+      <div id="infoBody"></div>
+      <div class="modal-btns">
+        <button type="button" class="tool-btn" id="btnInfoClose">知道啦</button>
       </div>
     </div>
   </div>
