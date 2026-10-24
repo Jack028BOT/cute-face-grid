@@ -177,6 +177,27 @@
   }
   #view { display: block; touch-action: none; }
 
+  /* --- 选中贴纸浮层工具条（删除/复制/置顶） --- */
+  #selTools {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    display: none; align-items: center; gap: 6px; z-index: 5;
+  }
+  #selTools.show { display: flex; }
+  #selTools button {
+    height: 30px; padding: 0 11px; font-size: 12px; font-weight: 700;
+    color: #6d2b50; white-space: nowrap;
+    background: linear-gradient(180deg, #ffffff, #fbdce9);
+    border: 2px solid; border-color: #fff #cf6ca1 #cf6ca1 #fff;
+    border-radius: 15px;
+    box-shadow: 0 2px 5px rgba(180, 40, 110, .3);
+  }
+  #selTools button:active { background: #f6b8d4; }
+  #selTools button.danger {
+    color: #fff; text-shadow: 0 1px 1px rgba(180, 40, 110, .5);
+    background: linear-gradient(180deg, #ff7fae, #ef4d8b);
+    border-color: #ffd0e4 #d14e8d #d14e8d #ffd0e4;
+  }
+
   /* --- 素材面板（限高纵向滚动：行数增多时不挤压画布区） --- */
   #matArea {
     flex: none;
@@ -327,6 +348,7 @@
       <button type="button" class="tool-btn" id="btnSave"><span class="ico">💾</span> 保存</button>
       <button type="button" class="tool-btn" id="btnUndo"><span class="ico">↩</span> 撤销</button>
       <button type="button" class="tool-btn" id="btnBrush"><span class="ico">✨</span> 画笔</button>
+      <button type="button" class="tool-btn" id="btnRatio"><span class="ico">▭</span> <span id="ratioLabel">方图</span></button>
       <span class="tb-spacer"></span>
       <button type="button" class="tool-btn mini" id="zoomOut">−</button>
       <span id="zoomLabel">1:1</span>
@@ -351,6 +373,11 @@
 
     <div id="stage">
       <div id="canvasWrap"><canvas id="view"></canvas></div>
+      <div id="selTools">
+        <button type="button" class="danger" id="stDelete">🗑 删除</button>
+        <button type="button" id="stCopy">⧉ 复制</button>
+        <button type="button" id="stTop">⬆ 置顶</button>
+      </div>
     </div>
 
     <div id="matArea">
@@ -375,7 +402,7 @@
     <div id="statusbar">
       <span class="cell" id="statCount">✨ × 0</span>
       <span class="cell" id="statZoom">缩放 100%</span>
-      <span class="grow" id="statHint">点素材行添加 · 拖动调整位置 · 选中后可删除</span>
+      <span class="grow" id="statHint">点素材行添加 · 拖动调整位置 · 选中后可删除/复制/置顶</span>
     </div>
   </div>
 
