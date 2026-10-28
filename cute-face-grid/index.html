@@ -309,13 +309,193 @@
     padding: 30px;
   }
   #fatal.show { display: flex; }
+  #fatalDetail {
+    margin-top: 12px; font-size: 12px; color: #b0638d;
+    word-break: break-all; max-height: 30vh; overflow-y: auto; text-align: left;
+  }
+
+  /* --- 自定义取色器：底部弹层，拖色时画布可见 --- */
+  #cpModal {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 160;
+    background: rgba(70, 20, 45, .35);
+    align-items: flex-end; justify-content: center;
+  }
+  #cpModal.show { display: flex; }
+  #cpCard {
+    width: 100%; max-width: 460px;
+    background: #fff7fb;
+    border: 3px solid #d76ea2; border-bottom: none;
+    border-radius: 16px 16px 0 0;
+    box-shadow: inset 0 3px 0 #ffe9f3, 0 -4px 14px rgba(70, 20, 45, .25);
+    padding: 12px 14px calc(14px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  }
+  #cpModal.show #cpCard { animation: cpUp .18s ease-out; }
+  @keyframes cpUp {
+    from { transform: translateY(36px); opacity: .5; }
+    to { transform: none; opacity: 1; }
+  }
+  #cpHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  #cpHead h3 { font-size: 16px; color: #8d3a67; }
+  #cpSV {
+    position: relative; width: 100%; height: 168px;
+    border: 2px solid #e8a8c8; border-radius: 10px;
+    background-color: #ff4f9a;
+    background-image: linear-gradient(to top, #000, rgba(0,0,0,0)),
+                      linear-gradient(to right, #fff, rgba(255,255,255,0));
+    touch-action: none; cursor: crosshair;
+  }
+  .cp-thumb {
+    position: absolute; width: 24px; height: 24px; border-radius: 50%;
+    border: 3px solid #fff; box-sizing: border-box;
+    box-shadow: 0 0 5px rgba(0,0,0,.5);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  #cpHue {
+    position: relative; height: 26px; margin-top: 12px; border-radius: 13px;
+    border: 2px solid #e8a8c8;
+    background: linear-gradient(90deg, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%);
+    touch-action: none; cursor: pointer;
+  }
+  #cpHueThumb { top: 50%; }
+  #cpRow { display: flex; align-items: center; margin-top: 14px; }
+  #cpSwatch {
+    flex: none; width: 40px; height: 40px; border-radius: 50%;
+    border: 2px solid #e8a8c8; box-sizing: border-box; background: #ff4f9a;
+  }
+  #cpHex {
+    flex: 1 1 auto; min-width: 0; height: 40px; margin-left: 10px; padding: 0 10px;
+    font-size: 18px; font-weight: 700; letter-spacing: 1px; color: #6d2b50;
+    font-family: "SF Mono", Consolas, "Courier New", monospace;
+    text-transform: uppercase;
+    background: #fff; border: 2px solid; border-color: #d76ea2 #fff #fff #d76ea2; border-radius: 6px;
+    -webkit-user-select: text; user-select: text;
+  }
+  #cpHex:focus { outline: none; border-color: #e2559a; }
+  #cpDone { display: block; width: 100%; height: 38px; margin-top: 14px; font-size: 14px; }
+
+  /* 颜色行末尾的「自定义」彩虹圆点 */
+  .cp-dot {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #ff5252, #ff9a3d, #ffd93d, #5dd39e, #38b6ff, #b06cf0);
+  }
+  .cp-dot-core {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #fff; border: 2px solid rgba(255,255,255,.9); box-sizing: border-box;
+  }
+
+  /* ===== 万圣节模式（🎃 参考南瓜夜主题：橙黄渐变夜空 + 奶油月 + 深棕剪影） ===== */
+  body.hw-mode { background: #d95f17; }
+  body.hw-mode #win {
+    background: linear-gradient(180deg, #ffc266 0%, #f79a2e 45%, #ef7414 100%);
+    border-color: #ffd9a0 #a34708 #96400a #ffd9a0;
+  }
+  body.hw-mode #titlebar {
+    background: linear-gradient(90deg, #f28220 0%, #f89a35 45%, #ffb054 100%);
+    border-bottom-color: #a34708;
+    box-shadow: inset 0 1px 0 rgba(255,240,210,.55);
+  }
+  body.hw-mode #titlebar .tb-title { text-shadow: 0 1px 2px rgba(110,50,5,.65); }
+  body.hw-mode .tb-chip { color: #b35209; border-color: #c25c0d; box-shadow: 1px 1px 0 rgba(140,60,8,.35); }
+  body.hw-mode .tb-btn {
+    background: linear-gradient(180deg, #ffe9c7, #fbc98a);
+    border-color: #fff #c25c0d #c25c0d #fff; color: #99500e;
+  }
+  body.hw-mode #menubar { border-bottom-color: #f0a95c; }
+  body.hw-mode .menu-btn { color: #7c3c0d; }
+  body.hw-mode .menu-btn:active { background: #f6bd72; border-color: #c25c0d; }
+  body.hw-mode .menu-pop {
+    background: #fff4e0;
+    border-color: #fff #c25c0d #c25c0d #fff;
+    box-shadow: 3px 3px 0 rgba(150,64,10,.3);
+  }
+  body.hw-mode .menu-act { color: #7c3c0d; }
+  body.hw-mode .menu-act:active { background: #f6bd72; }
+  body.hw-mode .export-btn {
+    background: linear-gradient(180deg, #ffa53f, #ef6c12);
+    border-color: #ffd9a0 #b34d08 #b34d08 #ffd9a0;
+    text-shadow: 0 1px 1px rgba(130,55,6,.5);
+    box-shadow: 1px 1px 0 rgba(150,64,10,.3);
+  }
+  body.hw-mode .export-btn:active { background: #e2660f; border-color: #b34d08 #ffd9a0 #ffd9a0 #b34d08; }
+  body.hw-mode .tool-btn {
+    color: #7c3c0d;
+    background: linear-gradient(180deg, #ffffff, #ffe0b0);
+    border-color: #fff #d0761c #d0761c #fff;
+    box-shadow: 1px 1px 0 rgba(160,70,10,.25);
+  }
+  body.hw-mode .tool-btn:active { background: #f8c377; border-color: #d0761c #fff #fff #d0761c; }
+  body.hw-mode .tool-btn.on {
+    background: linear-gradient(180deg, #ffd9a0, #ffa53f);
+    color: #fff; text-shadow: 0 1px 1px rgba(130,55,6,.55);
+  }
+  /* 万圣节按钮选中态：深紫夜色（对应剪影古堡/蝙蝠） */
+  body.hw-mode #btnHw.on {
+    background: linear-gradient(180deg, #6b3fa0, #472a6e);
+    border-color: #b691e8 #2c1a48 #2c1a48 #b691e8;
+    text-shadow: 0 1px 1px rgba(20,10,40,.55);
+  }
+  body.hw-mode #zoomLabel { color: #7c3c0d; }
+  body.hw-mode #sliderRow, body.hw-mode #photoSliderRow { color: #7c3c0d; }
+  body.hw-mode #sizeSlider::-webkit-slider-runnable-track,
+  body.hw-mode #photoSizeSlider::-webkit-slider-runnable-track {
+    background: linear-gradient(90deg, #ffa53f, #ffe9c7); border-color: #c25c0d;
+  }
+  body.hw-mode #sizeSlider::-webkit-slider-thumb,
+  body.hw-mode #photoSizeSlider::-webkit-slider-thumb {
+    border-color: #d96a12; box-shadow: 0 1px 3px rgba(150,64,10,.4);
+  }
+  body.hw-mode #stage { background: #fff3da; border-color: #c25c0d #fff #fff #c25c0d; }
+  body.hw-mode #selTools button {
+    color: #7c3c0d;
+    background: linear-gradient(180deg, #ffffff, #ffe0b0);
+    border-color: #fff #d0761c #d0761c #fff;
+    box-shadow: 0 2px 5px rgba(150,64,10,.3);
+  }
+  body.hw-mode #selTools button:active { background: #f8c377; }
+  body.hw-mode #selTools button.danger {
+    background: linear-gradient(180deg, #ff8a3d, #e05f11);
+    border-color: #ffd9a0 #b34d08 #b34d08 #ffd9a0;
+    text-shadow: 0 1px 1px rgba(130,55,6,.5);
+  }
+  body.hw-mode .mat-label { color: #7c3c0d; }
+  body.hw-mode .mat-tile {
+    border-color: #f6c78a #c25c0d #c25c0d #f6c78a;
+    box-shadow: 0 2px 0 rgba(194,92,13,.16);
+  }
+  body.hw-mode .mat-tile.slot-empty { border-color: #d96a12; background: #fff7e8; }
+  body.hw-mode .mat-tile .slot-replace { border-color: #c25c0d; color: #99500e; }
+  body.hw-mode .mat-tile.sel { border-color: #e2660f; box-shadow: 0 0 0 2px #ffa53f; }
+  body.hw-mode .mat-tile:active { background: #ffe9c7; box-shadow: 0 1px 0 rgba(194,92,13,.16); }
+  body.hw-mode .mat-tile .plus-tile { color: #c25c0d; }
+  body.hw-mode #statusbar { background: #f2a24d; color: #5d2c0c; }
+  body.hw-mode #saveModal, body.hw-mode #confirmModal, body.hw-mode #infoModal { background: rgba(70,30,5,.55); }
+  body.hw-mode #saveCard, body.hw-mode #confirmCard, body.hw-mode #infoCard {
+    background: #fff4e0; border-color: #fff #c25c0d #c25c0d #fff;
+  }
+  body.hw-mode #saveCard h3, body.hw-mode #infoCard h3 { color: #7c3c0d; }
+  body.hw-mode #saveCard img { border-color: #f6c78a; }
+  body.hw-mode #saveCard p { color: #a06a3a; }
+  body.hw-mode #confirmCard p { color: #7c3c0d; }
+  body.hw-mode #infoCard #infoBody p { color: #7c3c0d; }
+  body.hw-mode #cpModal { background: rgba(70,30,5,.35); }
+  body.hw-mode #cpCard {
+    background: #fff4e0; border-color: #c25c0d;
+    box-shadow: inset 0 3px 0 #ffe9c7, 0 -4px 14px rgba(70,30,5,.25);
+  }
+  body.hw-mode #cpHead h3 { color: #7c3c0d; }
+  body.hw-mode #cpSV { border-color: #f6c78a; }
+  body.hw-mode #cpHue { border-color: #f6c78a; }
+  body.hw-mode #cpSwatch { border-color: #f6c78a; }
+  body.hw-mode #cpHex { color: #7c3c0d; border-color: #c25c0d #fff #fff #c25c0d; }
 </style>
 </head>
 <body>
   <div id="win">
     <div id="titlebar">
-      <span class="tb-gem">✨</span>
-      <span class="tb-title">untitled – 萌系贴贴</span>
+      <span class="tb-gem" id="tbGem">✨</span>
+      <span class="tb-title" id="tbTitle">萌系贴贴 – 贴出可爱</span>
     </div>
 
     <div id="menubar">
@@ -345,10 +525,10 @@
 
     <div id="toolbar">
       <button type="button" class="tool-btn" id="btnClear"><span class="ico">🗑</span> 清空</button>
-      <button type="button" class="tool-btn" id="btnSave"><span class="ico">💾</span> 保存</button>
       <button type="button" class="tool-btn" id="btnUndo"><span class="ico">↩</span> 撤销</button>
       <button type="button" class="tool-btn" id="btnBrush"><span class="ico">✨</span> 画笔</button>
       <button type="button" class="tool-btn" id="btnRatio"><span class="ico">▭</span> <span id="ratioLabel">方图</span></button>
+      <button type="button" class="tool-btn" id="btnHw"><span class="ico">🎃</span> 万圣节</button>
       <span class="tb-spacer"></span>
       <button type="button" class="tool-btn mini" id="zoomOut">−</button>
       <span id="zoomLabel">1:1</span>
@@ -386,7 +566,7 @@
         <div class="mat-scroll" id="bgScroll"></div>
       </div>
       <div class="mat-row">
-        <span class="mat-label">主体</span>
+        <span class="mat-label">食物</span>
         <div class="mat-scroll" id="photoScroll"></div>
       </div>
       <div class="mat-row">
@@ -443,8 +623,29 @@
     </div>
   </div>
 
+  <div id="cpModal">
+    <div id="cpCard">
+      <div id="cpHead">
+        <h3>自定义颜色</h3>
+        <button type="button" class="tb-btn" id="cpClose">✕</button>
+      </div>
+      <div id="cpSV"><div class="cp-thumb" id="cpSVThumb"></div></div>
+      <div id="cpHue"><div class="cp-thumb" id="cpHueThumb"></div></div>
+      <div id="cpRow">
+        <span id="cpSwatch"></span>
+        <input type="text" id="cpHex" maxlength="7" spellcheck="false" autocomplete="off" />
+      </div>
+      <button type="button" class="tool-btn" id="cpDone">完成</button>
+    </div>
+  </div>
+
   <div id="toast"></div>
-  <div id="fatal">哎呀，出了点小问题，请退出后重新打开～</div>
+  <div id="fatal">
+    <div>
+      <div>哎呀，出了点小问题，请退出后重新打开～</div>
+      <div id="fatalDetail"></div>
+    </div>
+  </div>
 
   <script src="./assets.js"></script>
   <script src="./app.js"></script>

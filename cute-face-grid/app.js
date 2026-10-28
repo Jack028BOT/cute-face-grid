@@ -5,7 +5,7 @@
   'use strict';
 
   var EXPORT_SIZE = 1180;   // 导出宽度基准（1:1 与 3:4 共用宽度）
-  var EXP_RATIOS = { '1:1': { w: 1180, h: 1180 }, '3:4': { w: 1180, h: 1573 } };
+  var EXP_RATIOS = { '1:1': { w: 1180, h: 1180 }, '3:4': { w: 1180, h: 1573 }, '9:16': { w: 1080, h: 1920 } };
   function expDims() { return EXP_RATIOS[state.ratio] || EXP_RATIOS['1:1']; }
 
   /* ================= 小工具 ================= */
@@ -87,13 +87,14 @@
   }
 
   var PROC_BGS = [
-    { id: 'dots-blue',   name: '波点·蓝',   draw: function (c, w, h) { drawDots(c, w, h,'#47b1f0', '#ffffff', 7, true); } },
-    { id: 'dots-pink',   name: '波点·粉',   draw: function (c, w, h) { drawDots(c, w, h,'#ffb6d5', '#ffffff', 8, true); } },
-    { id: 'dots-rose',   name: '波点·玫红', draw: function (c, w, h) { drawDots(c, w, h,'#f062a8', '#ffffff', 8, true); } },
-    { id: 'dots-mint',   name: '波点·薄荷', draw: function (c, w, h) { drawDots(c, w, h,'#7fe3c3', '#ffffff', 8, true); } },
-    { id: 'dots-lemon',  name: '波点·柠檬', draw: function (c, w, h) { drawDots(c, w, h,'#f5e63d', '#ffffff', 8, true); } },
-    { id: 'dots-orange', name: '波点·橘',   draw: function (c, w, h) { drawDots(c, w, h,'#ff9a3d', '#ffffff', 8, true); } },
-    { id: 'dots-cocoa',  name: '彩点·可可', draw: function (c, w, h) { drawMultiDots(c, w, h, '#6b4a2f', 9); } }
+    // lum：背景色感知明度（0.299R+0.587G+0.114B），背景行按它由浅到深排序
+    { id: 'dots-lemon',  name: '波点·柠檬', lum: 215, draw: function (c, w, h) { drawDots(c, w, h,'#f5e63d', '#ffffff', 8, true); } },
+    { id: 'dots-pink',   name: '波点·粉',   lum: 207, draw: function (c, w, h) { drawDots(c, w, h,'#ffb6d5', '#ffffff', 8, true); } },
+    { id: 'dots-mint',   name: '波点·薄荷', lum: 194, draw: function (c, w, h) { drawDots(c, w, h,'#7fe3c3', '#ffffff', 8, true); } },
+    { id: 'dots-orange', name: '波点·橘',   lum: 174, draw: function (c, w, h) { drawDots(c, w, h,'#ff9a3d', '#ffffff', 8, true); } },
+    { id: 'dots-blue',   name: '波点·蓝',   lum: 153, draw: function (c, w, h) { drawDots(c, w, h,'#47b1f0', '#ffffff', 7, true); } },
+    { id: 'dots-rose',   name: '波点·玫红', lum: 148, draw: function (c, w, h) { drawDots(c, w, h,'#f062a8', '#ffffff', 8, true); } },
+    { id: 'dots-cocoa',  name: '彩点·可可', lum: 81,  draw: function (c, w, h) { drawMultiDots(c, w, h, '#6b4a2f', 9); } }
   ];
 
   function findProcBg(id) {
@@ -111,19 +112,44 @@
   var fileBgs = [];        // [{src, img}]
   var fileObjects = [];    // [{src, img}] 主体抠图
 
+  // 图片逐张加载完成时按行合并刷新：只重建对应行，避免每张图触发全量重建
+  function makeRowRefresher(fn, key) {
+    var pending = false;
+    return function () {
+      if (pending) return;
+      pending = true;
+      window.requestAnimationFrame(function () {
+        pending = false;
+        fn();
+      });
+    };
+  }
+  var refreshStkRowOnLoad = makeRowRefresher(renderStkRow, 'stk');
+  var refreshBgRowOnLoad = makeRowRefresher(renderBgRow, 'bg');
+  var refreshPhotoRowOnLoad = makeRowRefresher(renderPhotoRow, 'photo');
+
   function loadManifest() {
     var assets = window.MTG_ASSETS || {};
     var stks = assets.stickers || [];
     var bgs = assets.backgrounds || [];
     var objs = assets.objects || [];
-    stks.forEach(function (src) { preloadImage(src, fileStickers, refreshRows); });
-    bgs.forEach(function (src) { preloadImage(src, fileBgs, refreshRows); });
-    objs.forEach(function (src) { preloadImage(src, fileObjects, refreshRows); });
+    stks.forEach(function (src, i) {
+      preloadImage(src, fileStickers, i, function () {
+        refreshStkRowOnLoad();
+        resolveDraftStickers();   // 草稿里的图片贴纸等到位后补挂
+      });
+    });
+    bgs.forEach(function (src, i) { preloadImage(src, fileBgs, i, refreshBgRowOnLoad); });
+    objs.forEach(function (src, i) { preloadImage(src, fileObjects, i, refreshPhotoRowOnLoad); });
   }
 
-  function preloadImage(src, list, onDone) {
+  // 按清单下标落位，保证素材顺序稳定、photoRef 'file:n' 与清单一一对应
+  function preloadImage(src, list, idx, onDone) {
     var img = new Image();
-    img.onload = function () { list.push({ src: src, img: img }); onDone(); };
+    img.onload = function () {
+      list[idx] = { src: src, img: img };
+      if (onDone) onDone();
+    };
     img.onerror = function () { /* 清单与包内文件不一致时跳过 */ };
     img.src = src;
   }
@@ -146,7 +172,10 @@
       try { arr = JSON.parse(raw); } catch (e) { arr = null; }
       if (!arr || !arr.length) return;
       var list = (name === 'customStickers') ? customStickers : customBgs;
-      arr.forEach(function (src) { preloadImage(src, list, refreshRows); });
+      var done = (name === 'customStickers')
+        ? function () { refreshStkRowOnLoad(); resolveDraftStickers(); }
+        : refreshBgRowOnLoad;
+      arr.forEach(function (src, i) { preloadImage(src, list, i, done); });
     });
   }
 
@@ -155,6 +184,110 @@
     if (!safeSet(key, JSON.stringify(srcs))) {
       toast('本地空间不足，自定义素材仅本次有效');
     }
+  }
+
+  /* ================= 草稿自动保存（贴纸数组；背景/主体/比例由偏好持久化） ================= */
+  var DRAFT_KEY = 'cfg.draft';
+  var lastDraftJson = '';
+  var draftTimer = null;
+
+  // 图片贴纸按 src 反查引用（file:n / custom:n），图片本体不进草稿，避免撑爆本地空间
+  function stickerImgRef(st) {
+    var i;
+    for (i = 0; i < fileStickers.length; i++) {
+      if (fileStickers[i] && fileStickers[i].img === st.img) return 'file:' + i;
+    }
+    for (i = 0; i < customStickers.length; i++) {
+      if (customStickers[i] && customStickers[i].img === st.img) return 'custom:' + i;
+    }
+    return null;
+  }
+
+  function buildDraft() {
+    return state.stickers.map(function (st) {
+      var d = { kind: st.kind, x: st.x, y: st.y, scale: st.scale };
+      if (st.rot !== undefined) d.rot = st.rot;
+      if (st.kind === 'face') {
+        d.text = st.text;
+        if (st.tint) d.tint = st.tint;
+      } else if (st.kind === 'img') {
+        var ref = stickerImgRef(st);
+        if (!ref) return null;   // 引用丢失（如自定义表情被挤出上限）时跳过该贴纸
+        d.imgRef = ref;
+        if (st.tint) d.tint = st.tint;
+      } else { // spark
+        d.seed = st.seed;
+      }
+      return d;
+    }).filter(function (d) { return !!d; });
+  }
+
+  function scheduleDraftSave() {
+    if (draftTimer) return;
+    draftTimer = window.setTimeout(saveDraftNow, 900);
+  }
+
+  function saveDraftNow() {
+    if (draftTimer) { window.clearTimeout(draftTimer); draftTimer = null; }
+    // 还有图片贴纸未解析完成（启动初期）时不落盘，避免用半成品覆盖草稿
+    for (var i = 0; i < state.stickers.length; i++) {
+      if (state.stickers[i].kind === 'img' && !state.stickers[i].img) return;
+    }
+    var json = JSON.stringify({ v: 1, stickers: buildDraft() });
+    if (json === lastDraftJson) return;   // 内容没变不重复写本地
+    lastDraftJson = json;
+    safeSet(DRAFT_KEY, json);
+  }
+
+  function loadDraft() {
+    var raw = safeGet(DRAFT_KEY);
+    if (!raw) return false;
+    var d = null;
+    try { d = JSON.parse(raw); } catch (e) { d = null; }
+    if (!d || d.v !== 1 || !Array.isArray(d.stickers)) return false;
+    var restored = [];
+    d.stickers.forEach(function (s) {
+      if (!s || (s.kind !== 'face' && s.kind !== 'img' && s.kind !== 'spark')) return;
+      var st = {
+        kind: s.kind,
+        x: clamp(typeof s.x === 'number' ? s.x : 0.5, 0.02, 0.98),
+        y: clamp(typeof s.y === 'number' ? s.y : 0.5, 0.02, 0.98),
+        scale: clamp(typeof s.scale === 'number' ? s.scale : 1, 0.4, 1.6)
+      };
+      if (typeof s.rot === 'number' && isFinite(s.rot)) st.rot = s.rot;
+      if (s.kind === 'face') {
+        st.text = String(s.text || '').slice(0, 24);
+        if (!st.text) return;
+        if (typeof s.tint === 'string' && s.tint) st.tint = s.tint;
+      } else if (s.kind === 'img') {
+        if (typeof s.imgRef !== 'string' ||
+            (s.imgRef.indexOf('file:') !== 0 && s.imgRef.indexOf('custom:') !== 0)) return;
+        st.imgRef = s.imgRef;
+        if (typeof s.tint === 'string' && s.tint) st.tint = s.tint;
+      } else {
+        st.seed = parseInt(s.seed, 10) || 0;
+      }
+      restored.push(st);
+    });
+    state.stickers = restored;
+    return restored.length > 0;
+  }
+
+  // 草稿里的图片贴纸只有引用；素材逐张加载完成后补挂 Image 对象
+  function resolveDraftStickers() {
+    var changed = false;
+    state.stickers.forEach(function (st) {
+      if (st.kind !== 'img' || st.img) return;
+      var ref = st.imgRef || '';
+      if (ref.indexOf('file:') === 0) {
+        var fi = parseInt(ref.slice(5), 10);
+        if (fileStickers[fi]) { st.img = fileStickers[fi].img; changed = true; }
+      } else if (ref.indexOf('custom:') === 0) {
+        var ci = parseInt(ref.slice(7), 10);
+        if (customStickers[ci]) { st.img = customStickers[ci].img; changed = true; }
+      }
+    });
+    if (changed) render();
   }
 
   /* ================= 状态 ================= */
@@ -169,7 +302,8 @@
     zoom: 1,
     ratio: '1:1',           // 导出比例：1:1 方图 / 3:4 竖图
     photoX: 0.5,            // 主体在画布中的位置（归一化，0.5=居中，可拖动）
-    photoY: 0.5
+    photoY: 0.5,
+    hwMode: false           // 万圣节模式：UI 换装 + 素材行只显示万圣节元素
   };
   var prefs = { size: 100, photoSize: 100 };
   var undoStack = [];
@@ -186,7 +320,8 @@
       for (var k in st) { if (Object.prototype.hasOwnProperty.call(st, k)) copy[k] = st[k]; }
       return copy;
     });
-    undoStack.push({ stickers: snap, bgId: state.bgId, photoStyle: state.photoStyle, photoX: state.photoX, photoY: state.photoY });
+    undoStack.push({ stickers: snap, bgId: state.bgId, photoStyle: state.photoStyle,
+      photoX: state.photoX, photoY: state.photoY, photoRef: state.photoRef });
     if (undoStack.length > 30) undoStack.shift();
   }
 
@@ -198,6 +333,11 @@
     state.photoStyle = snap.photoStyle;
     if (typeof snap.photoX === 'number') state.photoX = snap.photoX;
     if (typeof snap.photoY === 'number') state.photoY = snap.photoY;
+    if (snap.photoRef !== undefined) {   // 恢复主体的更换记录
+      state.photoRef = snap.photoRef;
+      state.photo = null;
+      resolvePhoto();
+    }
     state.selIndex = -1;
     render();
     refreshRows();
@@ -320,6 +460,7 @@
   }
 
   function drawSticker(ctx, st, w, h) {
+    if (st.kind === 'img' && !st.img) return;   // 草稿贴纸图片未解析完成时先不绘制
     var size = stickerBaseSize(st) * st.scale;
     var x = st.x * w, y = st.y * h;
     ctx.save();
@@ -405,7 +546,7 @@
         vctx.shadowColor = 'rgba(0,0,0,0.45)';
         vctx.shadowBlur = 12;
         vctx.fillStyle = 'rgba(255,255,255,0.95)';
-        vctx.fillText('点下方「主体」行选个食物或传照片', dims.w / 2, dims.h * 0.9);
+        vctx.fillText('点下方「食物」行选个喜欢的，或传照片', dims.w / 2, dims.h * 0.9);
         vctx.restore();
       }
       // 颜色行跟随选中状态：选中对象变化时重建，否则仅同步显隐
@@ -419,6 +560,8 @@
       }
       // 选中贴纸时显示浮层工具条
       updateSelTools();
+      // 画布内容有变化时调度草稿保存（防抖，900ms 内的连续操作只落盘一次）
+      scheduleDraftSave();
     });
   }
 
@@ -495,89 +638,312 @@
     return state.selIndex >= 0 ? state.stickers[state.selIndex] : null;
   }
 
+  /* ================= 自定义取色器（渐变方块 + 色相条 + 色值输入） ================= */
+  function hexToRgb(hex) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+    if (!m) return null;
+    var n = parseInt(m[1], 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+  function rgbToHex(r, g, b) {
+    function byte(v) { return Math.max(0, Math.min(255, Math.round(v))); }
+    return '#' + ((1 << 24) + (byte(r) << 16) + (byte(g) << 8) + byte(b)).toString(16).slice(1).toUpperCase();
+  }
+  function rgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    var h = 0;
+    if (d > 0) {
+      if (mx === r) h = ((g - b) / d) % 6;
+      else if (mx === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h *= 60; if (h < 0) h += 360;
+    }
+    return { h: h, s: mx ? d / mx : 0, v: mx };
+  }
+  function hsvToRgb(h, s, v) {
+    h = ((h % 360) + 360) % 360;
+    var c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+    var r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; }
+    else if (h < 120) { r = x; g = c; }
+    else if (h < 180) { g = c; b = x; }
+    else if (h < 240) { g = x; b = c; }
+    else if (h < 300) { r = x; b = c; }
+    else { r = c; b = x; }
+    return { r: (r + m) * 255, g: (g + m) * 255, b: (b + m) * 255 };
+  }
+
+  var cpSt = null;            // 正在换色的贴纸
+  var cpDirty = false;        // 打开后是否已改动（首次改动才 pushUndo）
+  var cpHSV = { h: 330, s: 0.69, v: 1 };
+  var cpLastCustom = '#ff4f9a';   // 图片表情下次打开取色器的默认色
+  var cpCustomCore = null;    // 颜色行里「自定义」圆点的内芯（拖动时实时更新）
+
+  function isPresetColor(hex) {
+    for (var i = 0; i < DOPAMINE_COLORS.length; i++) {
+      if (DOPAMINE_COLORS[i].value.toLowerCase() === String(hex || '').toLowerCase()) return true;
+    }
+    return false;
+  }
+
+  function cpCurrentHex() {
+    var rgb = hsvToRgb(cpHSV.h, cpHSV.s, cpHSV.v);
+    return rgbToHex(rgb.r, rgb.g, rgb.b);
+  }
+
+  function cpRefreshUI() {
+    $('cpSVThumb').style.left = (cpHSV.s * 100) + '%';
+    $('cpSVThumb').style.top = ((1 - cpHSV.v) * 100) + '%';
+    $('cpSV').style.backgroundColor = 'hsl(' + Math.round(cpHSV.h) + ',100%,50%)';
+    $('cpHueThumb').style.left = (cpHSV.h / 360 * 100) + '%';
+    var hex = cpCurrentHex();
+    $('cpSwatch').style.background = hex;
+    var inp = $('cpHex');
+    if (document.activeElement !== inp) inp.value = hex;
+  }
+
+  function cpApply() {
+    if (!cpSt) return;
+    if (!cpDirty) { pushUndo(); cpDirty = true; }
+    var hex = cpCurrentHex();
+    cpSt.tint = hex;
+    cpLastCustom = hex;
+    if (cpCustomCore) cpCustomCore.style.background = hex;
+    // 拖动时实时同步颜色行的高亮：清掉预设色点的选中态，点亮「自定义」块
+    var row = $('tintScroll');
+    for (var i = 0; i < row.children.length; i++) {
+      var el = row.children[i];
+      el.className = el.className.split(' ').filter(function (c) { return c !== 'sel'; }).join(' ');
+    }
+    if (row.lastChild) row.lastChild.className += ' sel';
+    render();
+  }
+
+  function cpOpen(st) {
+    cpSt = st;
+    cpDirty = false;
+    var seed = (st.tint && hexToRgb(st.tint)) ? st.tint
+      : (st.kind === 'face' ? '#111111' : cpLastCustom);
+    var rgb = hexToRgb(seed);
+    var hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+    // 灰/黑没有色相：保留上次调的色相，只更新明度饱和度
+    if (hsv.s > 0) cpHSV.h = hsv.h;
+    cpHSV.s = hsv.s;
+    cpHSV.v = hsv.v;
+    cpRefreshUI();
+    $('cpModal').className = 'show';
+  }
+
+  function cpClose() {
+    $('cpModal').className = '';
+    cpSt = null;
+    syncTintRow(true);   // 关闭时重建颜色行，让预设/自定义高亮与最终颜色一致
+  }
+
+  function cpBindPad(el, onPick) {
+    var active = false;
+    function pick(ev) {
+      var r = el.getBoundingClientRect();
+      onPick(
+        clamp((ev.clientX - r.left) / r.width, 0, 1),
+        clamp((ev.clientY - r.top) / r.height, 0, 1)
+      );
+    }
+    el.addEventListener('pointerdown', function (ev) {
+      ev.preventDefault();
+      // 色值输入框若还在聚焦，先失焦，避免拖动时显示不同步
+      if (document.activeElement === $('cpHex')) $('cpHex').blur();
+      active = true;
+      el.setPointerCapture && el.setPointerCapture(ev.pointerId);
+      pick(ev);
+    });
+    el.addEventListener('pointermove', function (ev) {
+      if (!active) return;
+      ev.preventDefault();
+      pick(ev);
+    });
+    el.addEventListener('pointerup', function () { active = false; });
+    el.addEventListener('pointercancel', function () { active = false; });
+  }
+  cpBindPad($('cpSV'), function (x, y) {
+    cpHSV.s = x;
+    cpHSV.v = 1 - y;
+    cpApply(); cpRefreshUI();
+  });
+  cpBindPad($('cpHue'), function (x) {
+    cpHSV.h = x * 360;
+    cpApply(); cpRefreshUI();
+  });
+
+  // 输入合法 6 位色值即实时应用；提交（回车/失焦）时非法才提示并还原
+  $('cpHex').addEventListener('input', function () {
+    var rgb = hexToRgb(this.value);
+    if (!rgb) return;
+    var hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+    if (hsv.s > 0) cpHSV.h = hsv.h;
+    cpHSV.s = hsv.s;
+    cpHSV.v = hsv.v;
+    cpApply();
+    cpRefreshUI();
+  });
+  $('cpHex').addEventListener('change', function () {
+    var rgb = hexToRgb(this.value);
+    if (!rgb) {
+      this.value = cpCurrentHex();
+      toast('请输入 6 位色值，如 #FF4F9A');
+      return;
+    }
+    this.value = cpCurrentHex();
+    this.blur();
+  });
+  $('cpClose').addEventListener('click', cpClose);
+  $('cpDone').addEventListener('click', cpClose);
+  $('cpModal').addEventListener('click', function (ev) {
+    if (ev.target === this) cpClose();
+  });
+
+  // 颜色行末尾的「自定义」块：彩虹圈 + 内芯显示当前自定义色
+  function makeCustomTile(st) {
+    var t = makeTile();
+    var dot = document.createElement('span');
+    dot.className = 'cp-dot';
+    var core = document.createElement('span');
+    core.className = 'cp-dot-core';
+    dot.appendChild(core);
+    t.appendChild(dot);
+    t.title = '自定义颜色';
+    if (st.tint && !isPresetColor(st.tint)) {
+      t.className += ' sel';
+      core.style.background = st.tint;
+    }
+    t.addEventListener('click', function () { cpOpen(st); });
+    return { tile: t, core: core };
+  }
+
+  var tintRowShown = false;
   function syncTintRow(rebuild) {
     var rowEl = $('tintRow');
     var st = selSticker();
-    if (!st || st.kind === 'spark') { rowEl.style.display = 'none'; return; }
-    rowEl.style.display = '';
+    var shouldShow = !!(st && st.kind !== 'spark');
+    rowEl.style.display = shouldShow ? '' : 'none';
+    if (shouldShow !== tintRowShown) {
+      // 显隐切换时滚动素材区，保证「颜色」行在可视范围内（它排在最底部）
+      tintRowShown = shouldShow;
+      var area = $('matArea');
+      area.scrollTop = shouldShow ? area.scrollHeight : 0;
+    }
+    if (!shouldShow) return;
     if (!rebuild) return;
     var row = $('tintScroll');
     clearNode(row);
-    if (st.kind === 'face') {
-      FACE_COLORS.forEach(function (c) {
-        var t = makeTile();
-        var dot = document.createElement('span');
-        dot.style.cssText = 'width:34px;height:34px;border-radius:50%;background:' + (c.value || '#111111') +
-          ';border:2px solid ' + ((st.tint || '') === c.value ? '#e2559a' : '#f3c3da') + ';box-sizing:border-box';
-        t.appendChild(dot);
-        t.title = c.name;
-        if ((st.tint || '') === c.value) t.className += ' sel';
-        t.addEventListener('click', function () {
-          pushUndo();
-          st.tint = c.value;
-          syncTintRow(true); render();
-        });
-        row.appendChild(t);
+    var presets = (st.kind === 'face') ? FACE_COLORS : IMG_TINTS;
+    presets.forEach(function (c) {
+      var t = makeTile();
+      var dot = document.createElement('span');
+      // 原色用彩虹渐变圆点表示，其余为纯色圆点
+      var bg = c.value || (st.kind === 'img'
+        ? 'linear-gradient(135deg,#ff9ac4 25%,#ffe36e 50%,#8be0c8 75%,#9ecbff)'
+        : '#111111');
+      dot.style.cssText = 'width:34px;height:34px;border-radius:50%;background:' + bg +
+        ';border:2px solid ' + ((st.tint || '') === c.value ? '#e2559a' : '#f3c3da') + ';box-sizing:border-box';
+      t.appendChild(dot);
+      t.title = c.name;
+      if ((st.tint || '') === c.value) t.className += ' sel';
+      t.addEventListener('click', function () {
+        pushUndo();
+        st.tint = c.value;
+        syncTintRow(true); render();
       });
-    } else if (st.kind === 'img') {
-      IMG_TINTS.forEach(function (c) {
-        var t = makeTile();
-        var dot = document.createElement('span');
-        // 原色用彩虹渐变圆点表示，其余为纯色圆点
-        var bg = c.value || 'linear-gradient(135deg,#ff9ac4 25%,#ffe36e 50%,#8be0c8 75%,#9ecbff)';
-        dot.style.cssText = 'width:34px;height:34px;border-radius:50%;background:' + bg +
-          ';border:2px solid ' + ((st.tint || '') === c.value ? '#e2559a' : '#f3c3da') + ';box-sizing:border-box';
-        t.appendChild(dot);
-        t.title = c.name;
-        if ((st.tint || '') === c.value) t.className += ' sel';
-        t.addEventListener('click', function () {
-          pushUndo();
-          st.tint = c.value;
-          syncTintRow(true); render();
-        });
-        row.appendChild(t);
-      });
-    }
+      row.appendChild(t);
+    });
+    var custom = makeCustomTile(st);
+    cpCustomCore = custom.core;
+    row.appendChild(custom.tile);
+  }
+
+  // 图片背景感知明度（8x8 采样平均），结果按 src 缓存；失败兜底中性值
+  var bgLumCache = {};
+  function bgLuminance(src, img) {
+    if (bgLumCache[src] !== undefined) return bgLumCache[src];
+    var lum = 128;
+    try {
+      var c = document.createElement('canvas');
+      c.width = 8; c.height = 8;
+      var ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, 8, 8);
+      var d = ctx.getImageData(0, 0, 8, 8).data;
+      var sum = 0;
+      for (var i = 0; i < d.length; i += 4) {
+        sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      }
+      lum = sum / (d.length / 4);
+    } catch (e) { /* 跨域等异常时用兜底值 */ }
+    bgLumCache[src] = lum;
+    return lum;
+  }
+
+  function makeBgProcTile(def) {
+    var t = makeTile();
+    var c = document.createElement('canvas');
+    c.width = 60; c.height = 60;
+    def.draw(c.getContext('2d'), 60, 60);
+    t.appendChild(c);
+    if (state.bgId === def.id) t.className += ' sel';
+    t.addEventListener('click', function () {
+      pushUndo();
+      state.bgId = def.id;
+      persistPrefs();
+      refreshRows(); render();
+    });
+    return t;
+  }
+
+  function makeBgFileTile(it, i) {
+    var t = makeTile();
+    var c = document.createElement('canvas');
+    c.width = 60; c.height = 60;
+    drawCover(c.getContext('2d'), it.img, 0, 0, 60, 60);
+    t.appendChild(c);
+    if (state.bgId === 'file:' + i) t.className += ' sel';
+    t.addEventListener('click', function () {
+      pushUndo();
+      state.bgId = 'file:' + i;
+      persistPrefs();
+      refreshRows(); render();
+    });
+    return t;
   }
 
   function renderBgRow() {
     var row = $('bgScroll');
     clearNode(row);
-    PROC_BGS.forEach(function (def, i) {
-      var t = makeTile();
-      var c = document.createElement('canvas');
-      c.width = 60; c.height = 60;
-      def.draw(c.getContext('2d'), 60, 60);
-      t.appendChild(c);
-      if (state.bgId === def.id) t.className += ' sel';
-      t.addEventListener('click', function () {
-        pushUndo();
-        state.bgId = def.id;
-        persistPrefs();
-        refreshRows(); render();
+    // 波点背景合并成一个序列，按感知明度由浅到深排序：
+    // 程序化波点用标注的 lum，波点图片渲染时实测（结果缓存），照片底仍排最后
+    var dotEntries = [];
+    // 万圣节模式：程序化波点不是万圣节素材，整组隐藏
+    if (!state.hwMode) {
+      PROC_BGS.forEach(function (def) {
+        dotEntries.push({ lum: def.lum, kind: 'proc', def: def });
       });
-      row.appendChild(t);
-    });
-    // 打包背景分两组展示：波点（dots-*.png）在前，照片底在后；自定义槽位仍在最后
-    var dotsList = [], photoList = [];
+    }
+    var photoEntries = [];
     fileBgs.forEach(function (it, i) {
-      (it.src.indexOf('dots') >= 0 ? dotsList : photoList).push({ it: it, i: i });
+      var isHw = it.src.indexOf('/hw-') >= 0;
+      // 万圣节模式只留 hw-* 背景；普通模式隐藏今天新增的 hw-* 背景
+      if (state.hwMode ? !isHw : isHw) return;
+      if (it.src.indexOf('dots') >= 0) {
+        dotEntries.push({ lum: bgLuminance(it.src, it.img), kind: 'file', it: it, i: i });
+      } else {
+        photoEntries.push({ it: it, i: i });
+      }
     });
-    dotsList.concat(photoList).forEach(function (entry) {
-      var it = entry.it, i = entry.i;
-      var t = makeTile();
-      var c = document.createElement('canvas');
-      c.width = 60; c.height = 60;
-      drawCover(c.getContext('2d'), it.img, 0, 0, 60, 60);
-      t.appendChild(c);
-      if (state.bgId === 'file:' + i) t.className += ' sel';
-      t.addEventListener('click', function () {
-        pushUndo();
-        state.bgId = 'file:' + i;
-        persistPrefs();
-        refreshRows(); render();
-      });
-      row.appendChild(t);
+    dotEntries.sort(function (a, b) { return b.lum - a.lum; });   // 由浅到深
+    dotEntries.forEach(function (en) {
+      row.appendChild(en.kind === 'proc' ? makeBgProcTile(en.def) : makeBgFileTile(en.it, en.i));
+    });
+    photoEntries.forEach(function (en) {
+      row.appendChild(makeBgFileTile(en.it, en.i));
     });
     var slot = makeTile();
     if (customBgs.length) {
@@ -624,22 +990,29 @@
   function renderPhotoRow() {
     var row = $('photoScroll');
     clearNode(row);
-    // 按食物种类分组排序：1 主食早餐 → 2 水果 → 3 蛋糕甜品 → 4 布丁果冻饼干 → 5 冰品（未登记的排最后）
+    // 按食物种类分组排序：0 万圣节 → 1 主食 → 2 果蔬 → 3 蛋糕甜品 → 4 点心 → 5 冰品（未登记的排最后）
     var PHOTO_GROUPS = {
-      'baozi': 1, 'melonpan': 1, 'onigiri': 1, 'toast': 1, 'fried-egg': 1, 'corn-slice': 1, 'cheese': 1,
-      'orange-slice': 2, 'starfruit': 2, 'blueberry': 2,
+      'hw-donut-cat': 0, 'hw-roll-cat': 0, 'hw-cupcake-ghost2': 0, 'hw-roll-purple-ghost': 0, 'hw-roll-choco': 0, 'hw-cake-square': 0, 'hw-cake-pumpkin-cat': 0,
+      'baozi': 1, 'melonpan': 1, 'onigiri': 1, 'toast': 1, 'fried-egg': 1, 'cheese': 1, 'salmon-sushi': 1,
+      'sushi-roll-mango': 1, 'sushi-shrimp': 1,
+      'orange-slice': 2, 'starfruit': 2, 'blueberry': 2, 'corn-slice': 2,
       'strawberry-shortcake': 3, 'blackforest-cake': 3, 'blueberry-cake': 3, 'cheesecake': 3,
-      'sprinkle-cake': 3, 'cupcake': 3, 'mango-crepe': 3, 'cream-cherry': 3, 'donut': 3, 'macaron': 3,
+      'sprinkle-cake': 3, 'cupcake': 3, 'mango-crepe': 3, 'matcha-crepe': 3, 'cream-cherry': 3,
+      'cream-strawberry': 3, 'donut': 3, 'macaron': 3, 'macaron-yellow': 3, 'macaron-blue': 3,
+      'strawberry-cheesecake': 3,
       'swiss-roll': 3, 'cream-puff': 3, 'baked-cheesecake': 3,
       'pudding': 4, 'pudding-pink': 4, 'pudding-choco': 4, 'green-jelly': 4, 'cookie': 4, 'cookie-choc': 4, 'biscuit': 4,
-      'strawberry-icecream': 5, 'pistachio-icecream': 5, 'cat-popsicle': 5
+      'strawberry-icecream': 5, 'pistachio-icecream': 5, 'matcha-icecream': 5, 'choco-icecream': 5, 'cat-popsicle': 5
     };
     function photoGroup(src) {
       var name = String(src).replace(/^.*\//, '').replace(/\.png$/i, '');
-      return PHOTO_GROUPS[name] || 99;
+      // 注意不能用 || 99：组 0（万圣节）是 falsy 会被误判成未分组
+      return Object.prototype.hasOwnProperty.call(PHOTO_GROUPS, name) ? PHOTO_GROUPS[name] : 99;
     }
     // 携带原始索引排序，保证 photoRef 'file:n' 引用稳定
+    // 万圣节模式只留组 0（万圣节食物）；普通模式隐藏组 0（今天新增的万圣节内容只在万圣节模式显示）
     var sortedObjs = fileObjects.map(function (it, i) { return { it: it, i: i }; })
+      .filter(function (en) { return photoGroup(en.it.src) === 0 ? state.hwMode : true; })
       .sort(function (a, b) { return photoGroup(a.it.src) - photoGroup(b.it.src); }); // 同组内保持原相对顺序（sort 稳定）
     sortedObjs.forEach(function (entry) {
       var it = entry.it, i = entry.i;
@@ -671,7 +1044,7 @@
         pushUndo();
         state.photo = it.img;
         state.photoRef = 'custom:' + i;
-        state.photoStyle = it.cut ? 'raw' : 'circle';
+        state.photoStyle = 'raw';   // 用户上传保留原图形式，不做圆形裁剪
         persistPrefs();
         refreshRows(); render();
       });
@@ -697,7 +1070,7 @@
   function renderStkRow() {
     var row = $('stkScroll');
     clearNode(row);
-    FACES.forEach(function (text) {
+    if (!state.hwMode) FACES.forEach(function (text) {
       var t = makeTile();
       var sp = document.createElement('span');
       sp.className = 'face-tile';
@@ -707,6 +1080,9 @@
       row.appendChild(t);
     });
     fileStickers.forEach(function (it) {
+      var isHw = it.src.indexOf('hw-face') >= 0;
+      // 万圣节模式只留南瓜脸表情；普通模式隐藏今天新增的南瓜脸
+      if (state.hwMode ? !isHw : isHw) return;
       var t = makeTile();
       var im = document.createElement('img');
       im.src = it.src;
@@ -925,7 +1301,7 @@
       if (activePoints().length === 0) drag = null;  // 双指撒星星时抬一根不结束笔画
       return;
     }
-    if (drag && drag.photo && drag.moved) toast('主体位置已调整');
+    if (drag && drag.photo && drag.moved) toast('食物位置已调整');
     drag = null;
   }
   view.addEventListener('pointerup', endDrag);
@@ -1011,16 +1387,37 @@
     $('statZoom').textContent = '缩放 ' + Math.round(z * 100) + '%';
   }
 
-  /* ================= 导出比例（1:1 方图 / 3:4 竖图） ================= */
+  /* ================= 导出比例（1:1 方图 / 3:4 竖图 / 9:16 长图） ================= */
+  var RATIO_ORDER = ['1:1', '3:4', '9:16'];
+  var RATIO_LABELS = { '1:1': '方图', '3:4': '竖图', '9:16': '长图' };
   function updateRatioLabel() {
-    $('ratioLabel').textContent = state.ratio === '3:4' ? '竖图' : '方图';
+    $('ratioLabel').textContent = RATIO_LABELS[state.ratio] || '方图';
   }
   $('btnRatio').addEventListener('click', function () {
-    state.ratio = (state.ratio === '3:4') ? '1:1' : '3:4';
+    var idx = RATIO_ORDER.indexOf(state.ratio);
+    state.ratio = RATIO_ORDER[(idx + 1) % RATIO_ORDER.length];
     updateRatioLabel();
     persistPrefs();
     fitCanvas();
-    toast(state.ratio === '3:4' ? '已切换 3:4 竖图（笔记展示面积更大）' : '已切换 1:1 方图');
+    toast('已切换 ' + state.ratio + ' ' + RATIO_LABELS[state.ratio]);
+  });
+
+  /* ================= 万圣节模式（🎃 顶部工具栏开关） ================= */
+  function applyHwMode() {
+    // UI 主题换装：body class 控制 CSS（橙色南瓜夜皮肤 ↔ 粉色 Y2K）
+    if (document.body.classList) document.body.classList.toggle('hw-mode', !!state.hwMode);
+    else document.body.className = state.hwMode ? 'hw-mode' : '';
+    $('btnHw').className = 'tool-btn' + (state.hwMode ? ' on' : '');
+    var gem = $('tbGem'), title = $('tbTitle');
+    if (gem) gem.textContent = state.hwMode ? '🎃' : '✨';
+    if (title) title.textContent = state.hwMode ? '萌系贴贴 – 万圣节限定 🦇' : '萌系贴贴 – 贴出可爱';
+  }
+  $('btnHw').addEventListener('click', function () {
+    state.hwMode = !state.hwMode;
+    persistPrefs();
+    applyHwMode();
+    refreshRows();   // 三行素材按模式过滤重渲染（bgId/photoRef 引用不受展示过滤影响）
+    toast(state.hwMode ? '🎃 万圣节模式：夜色主题 + 万圣节素材' : '已切回常规模式（万圣节素材已隐藏）');
   });
   $('zoomIn').addEventListener('click', function () {
     var next = ZOOMS[0];
@@ -1050,7 +1447,6 @@
       render(); updateCount();
     });
   });
-  $('btnSave').addEventListener('click', function () { saveFlow(); });
   $('btnExport').addEventListener('click', function () { saveFlow(); });
 
   /* ================= 菜单 ================= */
@@ -1142,16 +1538,16 @@
         if (customObjects.length >= MAX_CUSTOM_PHOTOS) {
           customObjects.shift();
           if (state.photoRef && state.photoRef.indexOf('custom:') === 0) state.photoRef = null;
-          toast('最多保留 ' + MAX_CUSTOM_PHOTOS + ' 个自定义主体，最早的已被替换');
+          toast('最多保留 ' + MAX_CUSTOM_PHOTOS + ' 个自定义食物，最早的已被替换');
         }
         customObjects.push({ src: url, img: cut.img, cut: cut.cut });
         state.photo = cut.img;
         state.photoRef = 'custom:' + (customObjects.length - 1);
-        state.photoStyle = cut.cut ? 'raw' : 'circle';
+        state.photoStyle = 'raw';   // 用户上传保留原图形式，不做圆形裁剪
         persistCustom(CUSTOM_PHOTO_KEY, customObjects);
         persistPrefs();
         refreshRows(); render();
-        toast(cut.cut ? '已抠掉浅色背景，并加入主体栏 ✂️' : '照片已就绪，并加入主体栏');
+        toast(cut.cut ? '已抠掉浅色背景，并加入食物栏 ✂️' : '照片已就绪，并加入食物栏');
       };
       img.src = url;
     });
@@ -1186,7 +1582,7 @@
       img.onload = function () {
         var cut = autoCutout(img);
         customObjects.push({ src: src, img: cut.img, cut: cut.cut });
-        refreshRows();
+        refreshPhotoRowOnLoad();
         next();
       };
       img.onerror = next;
@@ -1390,10 +1786,11 @@
   function showAbout() {
     var lines = [
       '1. 点「背景」行挑一块波点底；点末尾「+」可上传自己的背景（↻ 可换图）',
-      '2. 点「主体」行选个食物，或上传照片（浅色底自动抠图）；拖「主体大小」滑杆调整大小',
+      '2. 点「食物」行挑一个，或上传照片（浅色底自动抠图）；拖「主体大小」滑杆调整大小',
       '3. 点「表情」行贴颜文字或五官，拖动摆位置；选中后可删除/复制/置顶，双指捏合缩放旋转',
-      '4. 主体可以直接在画布上拖动位置；点选表情出现「颜色」行，可换颜色或滤镜',
-      '5. 工具栏「方图/竖图」切换导出比例；点「保存」或「导出图片」生成图片，可存相册或发笔记'
+      '4. 食物可以直接在画布上拖动位置；点选表情出现「颜色」行，可选预设色或点彩虹圈自由调色',
+      '5. 工具栏「方图/竖图/长图」切换导出比例；点「保存」或「导出图片」生成图片，可存相册或发笔记',
+      '6. 作品自动存草稿：中途退出没关系，下次打开会接着上次的画布继续做'
     ];
     var body = $('infoBody');
     clearNode(body);
@@ -1464,7 +1861,8 @@
   function persistPrefs() {
     safeSet(PREFS_KEY, JSON.stringify({
       bgId: state.bgId, photoStyle: state.photoStyle, size: prefs.size, photoSize: prefs.photoSize,
-      photoRef: state.photoRef, photoX: state.photoX, photoY: state.photoY, ratio: state.ratio
+      photoRef: state.photoRef, photoX: state.photoX, photoY: state.photoY, ratio: state.ratio,
+      hw: !!state.hwMode
     }));
   }
   function loadPrefs() {
@@ -1480,7 +1878,10 @@
         if (typeof p.photoRef === 'string' && p.photoRef) state.photoRef = p.photoRef;
         if (typeof p.photoX === 'number') state.photoX = clamp(p.photoX, 0.02, 0.98);
         if (typeof p.photoY === 'number') state.photoY = clamp(p.photoY, 0.02, 0.98);
-        if (p.ratio === '1:1' || p.ratio === '3:4') state.ratio = p.ratio;
+        if (p.ratio === '1:1' || p.ratio === '3:4' || p.ratio === '9:16') state.ratio = p.ratio;
+        if (typeof p.hw === 'boolean') state.hwMode = p.hw;
+        // 用户上传的照片一律保留原图形式（旧版本存的圆形裁剪归一为原样）
+        if (state.photoRef && state.photoRef.indexOf('custom:') === 0) state.photoStyle = 'raw';
       }
     } catch (e) { /* 忽略损坏的偏好数据 */ }
   }
@@ -1488,9 +1889,11 @@
   /* ================= 启动 ================= */
   function init() {
     loadPrefs();
+    var draftRestored = loadDraft();
     loadCustomAssets();
     loadCustomPhotos();
     loadManifest();
+    applyHwMode();   // 恢复上次的万圣节模式（在首次渲染素材行之前，过滤才能生效）
     $('sizeSlider').value = prefs.size;
     $('sizeVal').textContent = prefs.size + '%';
     refreshRows();
@@ -1499,17 +1902,41 @@
     updateRatioLabel();
     updateCount();
     window.addEventListener('resize', fitCanvas);
+    // 页面退出/切后台时立即落盘，不等防抖
+    window.addEventListener('pagehide', saveDraftNow);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') saveDraftNow();
+    });
+    if (draftRestored) {
+      window.setTimeout(function () { toast('已恢复上次的草稿，继续编辑吧 ✨'); }, 400);
+    }
+    // 启动后 3 秒兜底清扫：仍解析不出图片的贴纸（如自定义表情被挤出上限）直接移除，
+    // 避免一直卡住草稿落盘
+    window.setTimeout(function () {
+      var before = state.stickers.length;
+      state.stickers = state.stickers.filter(function (st) {
+        return st.kind !== 'img' || !!st.img;
+      });
+      if (state.stickers.length !== before) { render(); updateCount(); }
+    }, 3000);
   }
 
+  function showFatal(detail) {
+    var f = $('fatal');
+    if (!f) return;
+    var d = $('fatalDetail');
+    if (d) d.textContent = detail ? String(detail).slice(0, 300) : '';
+    f.className = 'show';
+  }
   try {
     init();
   } catch (e) {
-    var f = $('fatal');
-    if (f) f.className = 'show';
+    showFatal((e && e.message) || e);
   }
-  window.addEventListener('error', function () {
-    var f = $('fatal');
-    if (f) f.className = 'show';
+  window.addEventListener('error', function (ev) {
+    showFatal(ev && ev.message
+      ? ev.message + ' @' + (ev.filename || '').split('/').pop() + ':' + (ev.lineno || 0)
+      : '未知错误');
   });
   // fatal 遮罩可点击关闭：出错后允许用户继续使用，而不是被遮罩锁死
   $('fatal').addEventListener('click', function () { this.className = ''; });
